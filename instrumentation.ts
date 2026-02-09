@@ -4,13 +4,14 @@ export async function register() {
             console.log('Instrumentation: Checking database...');
 
             const { createDatabaseIfNotExists } = await import("@/lib/db");
-            const { createUserTable } = await import("@/lib/db/users");
+            const { createUserTable, seedUsers } = await import("@/lib/db/users");
             const { createSubClusterTable } = await import("@/lib/db/clusters");
             const { createCutoffTable } = await import("@/lib/db/cutoff");
             const { createLogsTable } = await import("@/lib/db/logs");
 
             await createDatabaseIfNotExists();
             await createUserTable();
+            await seedUsers();
             await createSubClusterTable();
             await createCutoffTable();
             await createLogsTable();
