@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createUserIfNotExists } from "@/lib/db/users";
 
 export async function POST(req: NextRequest) {
     try {
@@ -36,6 +37,11 @@ export async function POST(req: NextRequest) {
         });
 
         const data = await response.json();
+
+        if (response.ok) {
+            const name = data.name;
+            await createUserIfNotExists(username, name);
+        }
 
         return NextResponse.json(data, { status: response.status });
     } catch (error) {
