@@ -5,8 +5,15 @@ export async function register() {
 
             const { createDatabaseIfNotExists } = await import("@/lib/db");
             const { createUserTable } = await import("@/lib/db/users");
-            createDatabaseIfNotExists();
-            createUserTable();
+            const { createSubClusterTable } = await import("@/lib/db/clusters");
+            const { createCutoffTable } = await import("@/lib/db/cutoff");
+            const { createLogsTable } = await import("@/lib/db/logs");
+
+            await createDatabaseIfNotExists();
+            await createUserTable();
+            await createSubClusterTable();
+            await createCutoffTable();
+            await createLogsTable();
 
             console.log('Instrumentation: Database initialized successfully');
         } catch (error) {
