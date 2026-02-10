@@ -7,8 +7,8 @@ export function middleware(request: NextRequest) {
     const isLoggedIn = !!userRole;
     
     const { pathname } = request.nextUrl;
-    const adminRoutes = ['/verifikasi-admin-only-example', '/verifikasi']; 
-    const protectedRoutes = ['/dashboard', '/owo'];
+    const adminRoutes = ['/verifikasi-admin-only-example']; 
+    const protectedRoutes = ['/dashboard', '/owo', '/verifikasi'];
     const authRoutes = ['/login'];
     if (authRoutes.some((route) => pathname.startsWith(route))) {
         if (isLoggedIn) {
