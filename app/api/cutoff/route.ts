@@ -1,18 +1,16 @@
 import { NextResponse } from 'next/server';
 import { insertCutoffData } from '@/lib/db/cutoff';
+import { checkExistingResiNumbers } from '@/lib/db/cutoff';
 
 export async function POST(request: Request) {
     try {
         const { userIds, token } = await request.json();
-
         if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
             return NextResponse.json({ error: 'userIds array is required' }, { status: 400 });
         }
-
         if (!token) {
             return NextResponse.json({ error: 'token is required' }, { status: 400 });
         }
-
         const response = await fetch(process.env.SKYLINK_URL + '/api/v1/shipments?status=PENDING_VERIFICATION&limit=100000&offset=0', {
             headers: {
                 'accept': '*/*',
@@ -43,13 +41,23 @@ export async function POST(request: Request) {
         }
         
         const responseData = await response.json();
-        const shipments = responseData.data;
+        const allShipments = responseData.data; 
 
-        if (!shipments || !Array.isArray(shipments) || shipments.length === 0) {
+        if (!allShipments || !Array.isArray(allShipments) || allShipments.length === 0) {
              return NextResponse.json({ message: 'No data found from source', count: 0 });
+        }        
+        const resiNumbersToCheck = allShipments.map((item: any) => item.resi_number);
+        const existingResiList = await checkExistingResiNumbers(resiNumbersToCheck);
+        const newShipments = allShipments.filter((item: any) => !existingResiList.includes(item.resi_number));
+        if (newShipments.length === 0) {
+            return NextResponse.json({ 
+                success: true, 
+                message: 'No new data to import. All items already exist in database.',
+                count: 0
+            });
         }
-
-        const totalItems = shipments.length;
+        
+        const totalItems = newShipments.length;
         const totalUsers = userIds.length;
         
         const baseCount = Math.floor(totalItems / totalUsers);
@@ -59,22 +67,19 @@ export async function POST(request: Request) {
         let currentIndex = 0;
 
         for (let i = 0; i < totalUsers; i++) {
-            // First user gets baseCount + remainder, others get baseCount
+            
             const countForThisUser = i === 0 ? baseCount + remainder : baseCount;
             const userId = userIds[i];
 
             for (let j = 0; j < countForThisUser; j++) {
                 if (currentIndex >= totalItems) break;
-                const item = shipments[currentIndex];
                 
-                // Map item to table columns
-                // school_name, npsn, resi_number, bapp_number, starlink_id, received_date, user_id
-                // Note: Ensure received_date is formatted correctly if needed. 
-                // Creating a new Date(item.received_date) usually works with updates to mysql2/dates.
+                const item = newShipments[currentIndex]; 
                 
                 dataToInsert.push([
+                    item.id,
                     item.school_name,
-                    item.school_id, // maps to npsn
+                    item.school_id, 
                     item.resi_number,
                     item.bapp_number,
                     item.starlink_id,
@@ -92,13 +97,13 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ 
             success: true, 
-            message: `Processed ${dataToInsert.length} items.`,
+            message: `Processed ${dataToInsert.length} new items (Skipped ${allShipments.length - newShipments.length} duplicates).`,
             distribution: {
-                totalItems,
+                totalNewItems: totalItems,
                 users: totalUsers,
                 basePerUser: baseCount,
                 remainder,
-                firstUserGot: baseCount + remainder
+                skipped: allShipments.length - newShipments.length
             }
         });
 
