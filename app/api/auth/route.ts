@@ -53,7 +53,24 @@ export async function POST(req: NextRequest) {
             userRecord = await createUserIfNotExists(username, name);
         }
 
-        return NextResponse.json({ ...data, csrf_token: csrfToken, user_id: userRecord?.id }, { status: response.status });
+        const jsonResponse = NextResponse.json({ ...data, csrf_token: csrfToken, user_id: userRecord?.id }, { status: response.status });
+
+        if (userRecord?.role) {
+            // Set cookie yang aman untuk middleware
+            jsonResponse.cookies.set("user_role", userRecord.role, {
+                httpOnly: true, // Tidak bisa diakses JS client (lebih aman)
+                path: "/",
+                maxAge: 60 * 60 * 24, // 1 hari
+                sameSite: "strict"
+            });
+            // Set cookie status login agar bisa dibaca client jika perlu (non-httpOnly)
+            jsonResponse.cookies.set("is_logged_in", "true", {
+                path: "/",
+                maxAge: 60 * 60 * 24,
+            });
+        }
+
+        return jsonResponse;
     } catch (error) {
         console.error("Proxy login error:", error);
         return NextResponse.json(
