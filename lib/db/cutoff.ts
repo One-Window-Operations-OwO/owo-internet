@@ -22,3 +22,20 @@ export async function createCutoffTable() {
         conn.release();
     }
 }
+
+export async function insertCutoffData(data: any[]) {
+    // data is an array of [school_name, npsn, resi_number, bapp_number, starlink_id, received_date, user_id]
+    if (data.length === 0) return;
+
+    const query = `
+        INSERT INTO cutoff (school_name, npsn, resi_number, bapp_number, starlink_id, received_date, user_id)
+        VALUES ?
+    `;
+
+    const conn = await pool.getConnection();
+    try {
+        await conn.query(query, [data]);
+    } finally {
+        conn.release();
+    }
+}
