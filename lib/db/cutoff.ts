@@ -8,7 +8,6 @@ export async function createCutoffTable() {
             school_name VARCHAR(255),
             npsn VARCHAR(50),
             resi_number VARCHAR(100),
-            bapp_number VARCHAR(100),
             starlink_id VARCHAR(100),
             received_date DATE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -25,11 +24,11 @@ export async function createCutoffTable() {
 }
 
 export async function insertCutoffData(data: any[]) {
-    // data is an array of [shipment_id, school_name, npsn, resi_number, bapp_number, starlink_id, received_date, user_id]
+    // data is an array of [shipment_id, school_name, npsn, resi_number, starlink_id, received_date, user_id]
     if (data.length === 0) return;
 
     const query = `
-        INSERT INTO cutoff (shipment_id, school_name, npsn, resi_number, bapp_number, starlink_id, received_date, user_id)
+        INSERT INTO cutoff (shipment_id, school_name, npsn, resi_number, starlink_id, received_date, user_id)
         VALUES ?
     `;
 
@@ -44,7 +43,7 @@ export async function checkExistingResiNumbers(resiNumbers: string[]) {
     if (resiNumbers.length === 0) return [];
 
     const placeholders = resiNumbers.map(() => '?').join(',');
-    
+
     const query = `
         SELECT resi_number 
         FROM cutoff 
@@ -54,8 +53,38 @@ export async function checkExistingResiNumbers(resiNumbers: string[]) {
     const conn = await pool.getConnection();
     try {
         const [rows]: any = await conn.query(query, resiNumbers);
-        
+
         return rows.map((row: any) => row.resi_number);
+    } finally {
+        conn.release();
+    }
+}
+
+export async function getCutoffDataByUser(userId: string, limit: number, offset: number) {
+    const conn = await pool.getConnection();
+    try {
+        // Get total count
+        const [countRows]: any = await conn.query(
+            'SELECT COUNT(*) as total FROM cutoff WHERE user_id = ?',
+            [userId]
+        );
+        const total = countRows[0].total;
+
+        // Get paginated data
+        const [rows] = await conn.query(
+            `SELECT cutoff.*, logs.status as verification_status 
+             FROM cutoff 
+             LEFT JOIN logs ON logs.cutoff_id = cutoff.id
+             WHERE cutoff.user_id = ? 
+             ORDER BY cutoff.created_at DESC 
+             LIMIT ? OFFSET ?`,
+            [userId, limit, offset]
+        );
+
+        return {
+            data: rows,
+            total
+        };
     } finally {
         conn.release();
     }

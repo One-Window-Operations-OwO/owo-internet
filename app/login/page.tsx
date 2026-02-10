@@ -39,6 +39,9 @@ export default function LoginPage() {
             if (data.csrf_token) {
                 localStorage.setItem("csrf_token", data.csrf_token);
             }
+            if (data.user_id) {
+                localStorage.setItem("user_id", String(data.user_id));
+            }
 
             setTimeout(() => router.push("/dashboard"), 1000);
 

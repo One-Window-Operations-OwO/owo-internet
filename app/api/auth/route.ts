@@ -47,12 +47,13 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        let userRecord = null;
         if (response.ok) {
             const name = data.name;
-            await createUserIfNotExists(username, name);
+            userRecord = await createUserIfNotExists(username, name);
         }
 
-        return NextResponse.json({ ...data, csrf_token: csrfToken }, { status: response.status });
+        return NextResponse.json({ ...data, csrf_token: csrfToken, user_id: userRecord?.id }, { status: response.status });
     } catch (error) {
         console.error("Proxy login error:", error);
         return NextResponse.json(

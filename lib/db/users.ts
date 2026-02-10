@@ -72,9 +72,13 @@ export async function createUserIfNotExists(email: string, name: string) {
         VALUES (?, ?, 'user') 
         ON DUPLICATE KEY UPDATE name = VALUES(name);
     `;
+    const getUserIdQuery = `SELECT id, name, role FROM users WHERE email = ?`;
+
     const conn = await pool.getConnection();
     try {
         await conn.query(query, [email, name]);
+        const [rows] = await conn.query(getUserIdQuery, [email]);
+        return (rows as any)[0];
     } finally {
         conn.release();
     }

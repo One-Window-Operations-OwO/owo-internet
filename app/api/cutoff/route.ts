@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { insertCutoffData } from '@/lib/db/cutoff';
+import { insertCutoffData, getCutoffDataByUser } from '@/lib/db/cutoff';
 import { checkExistingResiNumbers } from '@/lib/db/cutoff';
 
 export async function POST(request: Request) {
@@ -35,31 +35,31 @@ export async function POST(request: Request) {
                 'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36'
             }
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to fetch shipments: ${response.statusText}`);
         }
-        
+
         const responseData = await response.json();
-        const allShipments = responseData.data; 
+        const allShipments = responseData.data;
 
         if (!allShipments || !Array.isArray(allShipments) || allShipments.length === 0) {
-             return NextResponse.json({ message: 'No data found from source', count: 0 });
-        }        
+            return NextResponse.json({ message: 'No data found from source', count: 0 });
+        }
         const resiNumbersToCheck = allShipments.map((item: any) => item.resi_number);
         const existingResiList = await checkExistingResiNumbers(resiNumbersToCheck);
         const newShipments = allShipments.filter((item: any) => !existingResiList.includes(item.resi_number));
         if (newShipments.length === 0) {
-            return NextResponse.json({ 
-                success: true, 
+            return NextResponse.json({
+                success: true,
                 message: 'No new data to import. All items already exist in database.',
                 count: 0
             });
         }
-        
+
         const totalItems = newShipments.length;
         const totalUsers = userIds.length;
-        
+
         const baseCount = Math.floor(totalItems / totalUsers);
         const remainder = totalItems % totalUsers;
 
@@ -67,26 +67,25 @@ export async function POST(request: Request) {
         let currentIndex = 0;
 
         for (let i = 0; i < totalUsers; i++) {
-            
+
             const countForThisUser = i === 0 ? baseCount + remainder : baseCount;
             const userId = userIds[i];
 
             for (let j = 0; j < countForThisUser; j++) {
                 if (currentIndex >= totalItems) break;
-                
-                const item = newShipments[currentIndex]; 
-                
+
+                const item = newShipments[currentIndex];
+
                 dataToInsert.push([
                     item.id,
                     item.school_name,
-                    item.school_id, 
+                    item.school_id,
                     item.resi_number,
-                    item.bapp_number,
                     item.starlink_id,
-                    new Date(item.received_date), 
+                    new Date(item.received_date),
                     userId
                 ]);
-                
+
                 currentIndex++;
             }
         }
@@ -95,8 +94,8 @@ export async function POST(request: Request) {
             await insertCutoffData(dataToInsert);
         }
 
-        return NextResponse.json({ 
-            success: true, 
+        return NextResponse.json({
+            success: true,
             message: `Processed ${dataToInsert.length} new items (Skipped ${allShipments.length - newShipments.length} duplicates).`,
             distribution: {
                 totalNewItems: totalItems,
@@ -110,5 +109,34 @@ export async function POST(request: Request) {
     } catch (error: any) {
         console.error('Error processing cutoff:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
+export async function GET(request: Request) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const userId = searchParams.get('user_id');
+        const page = parseInt(searchParams.get('page') || '1');
+        const limit = parseInt(searchParams.get('limit') || '10');
+        const offset = (page - 1) * limit;
+
+        if (!userId) {
+            return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+        }
+
+        const { data, total } = await getCutoffDataByUser(userId, limit, offset);
+
+        return NextResponse.json({
+            data,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error: any) {
+        console.error('Error fetching cutoff data:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

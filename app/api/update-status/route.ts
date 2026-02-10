@@ -20,7 +20,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing authentication tokens (auth_token, csrf_token)' }, { status: 400 });
         }
 
-        const skylinkUrl = process.env.SKYLINK_URL || "https://skylink.sab.id";
+        const skylinkUrl = process.env.SKYLINK_URL;
         const url = `${skylinkUrl}/api/v1/shipments/${shipment_id}/status`;
 
         let skylinkBody: any = {
