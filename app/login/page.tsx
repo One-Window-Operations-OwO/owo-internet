@@ -36,6 +36,9 @@ export default function LoginPage() {
             console.log("Login success:", data);
 
             localStorage.setItem("token", data.access_token);
+            if (data.csrf_token) {
+                localStorage.setItem("csrf_token", data.csrf_token);
+            }
 
             setTimeout(() => router.push("/dashboard"), 1000);
 

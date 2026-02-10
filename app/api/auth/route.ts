@@ -37,13 +37,22 @@ export async function POST(req: NextRequest) {
         });
 
         const data = await response.json();
+        const cookie = response.headers.get("set-cookie");
+        let csrfToken = null;
+
+        if (cookie) {
+            const match = cookie.match(/csrf_token=([^;]+)/);
+            if (match) {
+                csrfToken = match[1];
+            }
+        }
 
         if (response.ok) {
             const name = data.name;
             await createUserIfNotExists(username, name);
         }
 
-        return NextResponse.json(data, { status: response.status });
+        return NextResponse.json({ ...data, csrf_token: csrfToken }, { status: response.status });
     } catch (error) {
         console.error("Proxy login error:", error);
         return NextResponse.json(
