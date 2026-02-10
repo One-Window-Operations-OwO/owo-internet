@@ -42,18 +42,16 @@ export async function insertCutoffData(data: any[]) {
 export async function checkExistingResiNumbers(resiNumbers: string[]) {
     if (resiNumbers.length === 0) return [];
 
-    const placeholders = resiNumbers.map(() => '?').join(',');
-
-    const query = `
-        SELECT resi_number 
-        FROM cutoff 
-        WHERE resi_number IN (${placeholders})
-    `;
-
     const conn = await pool.getConnection();
     try {
-        const [rows]: any = await conn.query(query, resiNumbers);
-
+        const query = `
+            SELECT c.resi_number 
+            FROM cutoff c
+            LEFT JOIN logs l ON c.id = l.cutoff_id
+            WHERE c.resi_number IN (?)
+            AND (l.status = 'VERIFIED' OR l.status IS NULL)
+        `;
+        const [rows]: any = await conn.query(query, [resiNumbers]);
         return rows.map((row: any) => row.resi_number);
     } finally {
         conn.release();

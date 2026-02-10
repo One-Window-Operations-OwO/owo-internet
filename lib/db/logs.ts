@@ -4,7 +4,8 @@ export async function createLogsTable() {
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS logs (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            cutoff_id INT,
+            cutoff_id INT NOT NULL,
+            serial_number VARCHAR(255) NOT NULL,
             geo_tagging INT NULL,
             foto_sekolah INT NULL,
             foto_box_dan_pic INT NULL,
@@ -13,8 +14,8 @@ export async function createLogsTable() {
             serial_number_bapp INT NULL,
             perangkat_terhubung_internet INT NULL,
             bapp INT NULL,
-            user_id INT NULL,
-            status ENUM('REJECTED', 'VERIFIED') DEFAULT NULL,
+            user_id INT NOT NULL,
+            status ENUM('REJECTED', 'VERIFIED') NOT NULL,
             
             FOREIGN KEY (cutoff_id) REFERENCES cutoff(id) ON DELETE CASCADE,
             FOREIGN KEY (geo_tagging) REFERENCES sub_cluster(id) ON DELETE SET NULL,
@@ -37,6 +38,25 @@ export async function createLogsTable() {
         if (columns.length === 0) {
             await conn.query("ALTER TABLE logs ADD COLUMN status ENUM('REJECTED', 'VERIFIED') DEFAULT NULL");
         }
+    } finally {
+        conn.release();
+    }
+}
+
+export async function insertLog(cutoffId: number, serialNumber: string, userId: number) {
+    const conn = await pool.getConnection();
+    try {
+        const [existing]: any = await conn.query('SELECT id FROM logs WHERE cutoff_id = ?', [cutoffId]);
+
+        if (existing.length > 0) {
+            return existing[0].id;
+        }
+
+        const [result]: any = await conn.query(
+            'INSERT INTO logs (cutoff_id, serial_number, user_id, status) VALUES (?, ?, ?, ?)',
+            [cutoffId, serialNumber, userId, 'REJECTED']
+        );
+        return result.insertId;
     } finally {
         conn.release();
     }
