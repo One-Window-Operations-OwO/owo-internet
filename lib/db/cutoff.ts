@@ -87,3 +87,20 @@ export async function getCutoffDataByUser(userId: string, limit: number, offset:
         conn.release();
     }
 }
+
+export async function getUnloggedCutoffByUser(userId: string) {
+    const conn = await pool.getConnection();
+    try {
+        const query = `
+            SELECT c.* 
+            FROM cutoff c
+            LEFT JOIN logs l ON c.id = l.cutoff_id
+            WHERE c.user_id = ? 
+            AND l.id IS NULL
+        `;
+        const [rows] = await conn.query(query, [userId]);
+        return rows;
+    } finally {
+        conn.release();
+    }
+}
