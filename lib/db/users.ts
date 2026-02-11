@@ -67,18 +67,45 @@ export async function seedUsers() {
 }
 
 export async function createUserIfNotExists(email: string, name: string) {
-    const query = `
-        INSERT INTO users (email, name, role) 
-        VALUES (?, ?, 'user') 
-        ON DUPLICATE KEY UPDATE name = VALUES(name);
-    `;
+    // Check if user exists first to get their role
     const getUserIdQuery = `SELECT id, name, role FROM users WHERE email = ?`;
 
     const conn = await pool.getConnection();
     try {
-        await conn.query(query, [email, name]);
-        const [rows] = await conn.query(getUserIdQuery, [email]);
-        return (rows as any)[0];
+        const [existing] = await conn.query(getUserIdQuery, [email]);
+        const existingUser = (existing as any)[0];
+
+        if (existingUser) {
+            // User exists, just return info
+            return existingUser;
+        }
+
+        // User doesn't exist, create with default 'user' role
+        const insertQuery = `INSERT INTO users (email, name, role) VALUES (?, ?, 'user')`;
+        await conn.query(insertQuery, [email, name]);
+
+        const [newUser] = await conn.query(getUserIdQuery, [email]);
+        return (newUser as any)[0];
+    } finally {
+        conn.release();
+    }
+}
+
+export async function getAllUsers() {
+    const conn = await pool.getConnection();
+    try {
+        const [rows] = await conn.query('SELECT id, name, email, role FROM users ORDER BY name ASC');
+        return rows;
+    } finally {
+        conn.release();
+    }
+}
+
+export async function getUserByEmail(email: string) {
+    const conn = await pool.getConnection();
+    try {
+        const [rows] = await conn.query('SELECT * FROM users WHERE email = ?', [email]);
+        return (rows as any)[0] || null;
     } finally {
         conn.release();
     }
