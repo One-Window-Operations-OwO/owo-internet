@@ -37,6 +37,8 @@ export async function POST(req: NextRequest) {
         });
 
         const data = await response.json();
+        console.log("Skylink Login Response Keys:", Object.keys(data));
+
         const cookie = response.headers.get("set-cookie");
         let csrfToken = null;
 
@@ -52,21 +54,16 @@ export async function POST(req: NextRequest) {
             const name = data.name;
             userRecord = await createUserIfNotExists(username, name);
         }
-
         const jsonResponse = NextResponse.json({ ...data, csrf_token: csrfToken, user_id: userRecord?.id }, { status: response.status });
 
-        if (userRecord?.role) {
-            // Set cookie yang aman untuk middleware
-            jsonResponse.cookies.set("user_role", userRecord.role, {
-                httpOnly: true, // Tidak bisa diakses JS client (lebih aman)
+        // Set access_token cookie
+        if (data.access_token) {
+            jsonResponse.cookies.set("access_token", data.access_token, {
+                httpOnly: true,
                 path: "/",
-                maxAge: 60 * 60 * 24, // 1 hari
-                sameSite: "strict"
-            });
-            // Set cookie status login agar bisa dibaca client jika perlu (non-httpOnly)
-            jsonResponse.cookies.set("is_logged_in", "true", {
-                path: "/",
-                maxAge: 60 * 60 * 24,
+                maxAge: 60 * 60 * 24 * 7, // 7 days
+                sameSite: "strict",
+                secure: process.env.NODE_ENV === "production",
             });
         }
 

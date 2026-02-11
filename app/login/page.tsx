@@ -35,7 +35,7 @@ export default function LoginPage() {
             setSuccess("Login successful! Redirecting...");
             console.log("Login success:", data);
 
-            localStorage.setItem("token", data.access_token);
+            // Cookies are handled by the server now, but user wants resilience/CSRF
             if (data.csrf_token) {
                 localStorage.setItem("csrf_token", data.csrf_token);
             }
@@ -43,7 +43,13 @@ export default function LoginPage() {
                 localStorage.setItem("user_id", String(data.user_id));
             }
 
-            setTimeout(() => router.push("/dashboard"), 1000);
+            // Store credentials for auto-relogin (User Request)
+            localStorage.setItem("auth_username", username);
+            localStorage.setItem("auth_password", password);
+
+            setTimeout(() => {
+                router.push("/dashboard");
+            }, 500);
 
         } catch (err: any) {
             setError(err.message || "An error occurred");
