@@ -49,6 +49,12 @@ interface SidebarProps {
     onRetry?: () => void;
     position: "left" | "right";
     setPosition: (pos: "left" | "right") => void;
+
+    // New fields
+    tanggalBapp: string;
+    setTanggalBapp: (val: string) => void;
+    manualSerialNumber: string;
+    setManualSerialNumber: (val: string) => void;
 }
 
 export default function Sidebar({
@@ -67,9 +73,18 @@ export default function Sidebar({
     onRetry,
     position,
     setPosition,
+    tanggalBapp,
+    setTanggalBapp,
+    manualSerialNumber,
+    setManualSerialNumber,
 }: SidebarProps) {
     const hasRejections = Object.keys(selectedRejections).length > 0 || !!customReason;
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+    // Check if "Serial Number BAPP" is rejected
+    const isSerialNumberMismatch = Object.entries(selectedRejections).some(([main, sub]) =>
+        main === 'Serial Number BAPP' && Boolean(sub)
+    );
 
     // Group clusters by main_cluster
     const grouped = clusters.reduce((acc, cluster) => {
@@ -107,30 +122,35 @@ export default function Sidebar({
                 />
             </div>
 
-            {/* Header */}
-            <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                <div>
-                    <h2 className="text-lg font-bold">Verification</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                        Item {currentIndex + 1} of {totalItems}
-                    </p>
-                </div>
-            </div>
-
-            {/* Rejection Reason Textarea */}
+            {/* Tanggal Pengecekan Input */}
             <div className="mb-4 flex-shrink-0">
                 <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
-                    Rejection Reason
+                    Tanggal Pengecekan
                 </label>
-                <textarea
-                    rows={3}
+                <input
+                    type="date"
                     className="block w-full rounded-md bg-gray-900 border border-gray-600 py-1.5 px-2 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500 text-xs leading-5"
-                    placeholder="Select below or type..."
-                    value={customReason}
-                    onChange={(e) => setCustomReason(e.target.value)}
-                    onKeyDown={(e) => e.stopPropagation()}
+                    value={tanggalBapp}
+                    onChange={(e) => setTanggalBapp(e.target.value)}
                 />
             </div>
+
+            {/* Conditional Serial Number Input */}
+            {isSerialNumberMismatch && (
+                <div className="mb-4 flex-shrink-0">
+                    <label className="text-xs font-semibold text-yellow-500 uppercase tracking-wider block mb-1">
+                        Input Serial Number (Manual)
+                    </label>
+                    <input
+                        type="text"
+                        className="block w-full rounded-md bg-gray-900 border border-yellow-500 py-1.5 px-2 text-white placeholder:text-gray-500 focus:outline-none focus:border-yellow-400 text-xs leading-5"
+                        placeholder="Enter correct SN..."
+                        value={manualSerialNumber}
+                        onChange={(e) => setManualSerialNumber(e.target.value)}
+                    />
+                </div>
+            )}
+
 
             {/* Clusters / Rejection Options (Scrollable) */}
             <div className="flex-grow overflow-y-auto custom-scrollbar">
@@ -177,6 +197,20 @@ export default function Sidebar({
 
             {/* Footer Actions */}
             <div className="border-t border-gray-700 pt-3 mt-2 flex-shrink-0">
+                {/* Rejection Reason Textarea */}
+                <div className="mb-4 flex-shrink-0">
+                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+                        Rejection Reason
+                    </label>
+                    <textarea
+                        rows={3}
+                        className="block w-full rounded-md bg-gray-900 border border-gray-600 py-1.5 px-2 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500 text-xs leading-5"
+                        placeholder="Select below or type..."
+                        value={customReason}
+                        onChange={(e) => setCustomReason(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                    />
+                </div>
                 {/* Compact Info Row */}
                 <div className="flex items-center justify-between mb-3 bg-gray-900/50 p-2 rounded border border-gray-700">
                     <div className="flex items-center gap-2 select-none">

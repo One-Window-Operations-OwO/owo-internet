@@ -112,6 +112,10 @@ export default function OwoPage() {
     const [selectedRejections, setSelectedRejections] = useState<Record<string, string>>({});
     const [customReason, setCustomReason] = useState<string>('');
 
+    // New State for Sidebar Inputs
+    const [tanggalBapp, setTanggalBapp] = useState<string>('');
+    const [manualSerialNumber, setManualSerialNumber] = useState<string>('');
+
     useEffect(() => {
         const fetchClusters = async () => {
             try {
@@ -173,6 +177,20 @@ export default function OwoPage() {
             const currentItem = queue[currentIndex];
             const nextItem = currentIndex + 1 < queue.length ? queue[currentIndex + 1] : null;
 
+            // Initialize Tanggal Pengecekan with Received Date
+            if (isMounted) {
+                if (currentItem.received_date) {
+                    const date = new Date(currentItem.received_date);
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    setTanggalBapp(`${year}-${month}-${day}`);
+                } else {
+                    setTanggalBapp('');
+                }
+                setManualSerialNumber(currentItem.starlink_id || '');
+            }
+
             // 1. Load Current Item
             if (prefetchData?.id === currentItem.shipment_id) {
                 if (isMounted) {
@@ -232,6 +250,7 @@ export default function OwoPage() {
     const handleNext = () => {
         setSelectedRejections({});
         setCustomReason('');
+        // setManualSerialNumber is handled in useEffect
         if (currentIndex < queue.length - 1) {
             setCurrentIndex(prev => prev + 1);
         } else {
@@ -296,6 +315,12 @@ export default function OwoPage() {
             });
 
             if (res.ok) {
+                // Determine final serial number
+                const isSerialNumberMismatch = Object.entries(selectedRejections).some(([main, sub]) =>
+                    main === 'Serial Number BAPP' && Boolean(sub)
+                );
+                const finalSerialNumber = isSerialNumberMismatch ? manualSerialNumber : currentItem.starlink_id;
+
                 // Insert log to database
                 try {
                     await fetch('/api/insert-log', {
@@ -303,9 +328,10 @@ export default function OwoPage() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             cutoff_id: currentItem.id,
-                            serial_number: currentItem.starlink_id,
+                            serial_number: finalSerialNumber,
                             user_id: parseInt(userId),
-                            rejections: selectedRejections
+                            rejections: selectedRejections,
+                            tanggal_bapp: tanggalBapp
                         })
                     });
                 } catch (logError) {
@@ -553,6 +579,10 @@ export default function OwoPage() {
                     onRetry={handleSubmit}
                     position={sidebarPosition}
                     setPosition={setSidebarPosition}
+                    tanggalBapp={tanggalBapp}
+                    setTanggalBapp={setTanggalBapp}
+                    manualSerialNumber={manualSerialNumber}
+                    setManualSerialNumber={setManualSerialNumber}
                 />
             </div>
 

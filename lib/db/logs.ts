@@ -28,6 +28,8 @@ export async function createLogsTable() {
             bapp INT NULL,
             user_id INT NOT NULL,
             status ENUM('REJECTED', 'VERIFIED') NOT NULL,
+            tanggal_bapp DATE NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             
             FOREIGN KEY (cutoff_id) REFERENCES cutoff(id) ON DELETE CASCADE,
             FOREIGN KEY (geo_tagging) REFERENCES cluster(id) ON DELETE SET NULL,
@@ -50,6 +52,18 @@ export async function createLogsTable() {
         if (columns.length === 0) {
             await conn.query("ALTER TABLE logs ADD COLUMN status ENUM('REJECTED', 'VERIFIED') DEFAULT NULL");
         }
+
+        // Migration: Check if tanggal_bapp column exists
+        const [tbCols]: any = await conn.query("SHOW COLUMNS FROM logs LIKE 'tanggal_bapp'");
+        if (tbCols.length === 0) {
+            await conn.query("ALTER TABLE logs ADD COLUMN tanggal_bapp DATE NULL");
+        }
+
+        // Migration: Check if created_at column exists
+        const [caCols]: any = await conn.query("SHOW COLUMNS FROM logs LIKE 'created_at'");
+        if (caCols.length === 0) {
+            await conn.query("ALTER TABLE logs ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP");
+        }
     } finally {
         conn.release();
     }
@@ -70,7 +84,8 @@ export async function insertLog(
     cutoffId: number,
     serialNumber: string,
     userId: number,
-    clusterValues?: ClusterValues
+    clusterValues?: ClusterValues,
+    tanggalBapp?: string
 ) {
     const conn = await pool.getConnection();
     try {
@@ -90,8 +105,9 @@ export async function insertLog(
                 cutoff_id, serial_number, user_id, status,
                 geo_tagging, foto_sekolah, foto_box_dan_pic,
                 kelengkapan_unit, foto_serial_number_kardus,
-                serial_number_bapp, perangkat_terhubung_internet, bapp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                serial_number_bapp, perangkat_terhubung_internet, bapp,
+                tanggal_bapp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 cutoffId,
                 serialNumber,
@@ -105,6 +121,7 @@ export async function insertLog(
                 cv.serial_number_bapp ?? null,
                 cv.perangkat_terhubung_internet ?? null,
                 cv.bapp ?? null,
+                tanggalBapp ?? null,
             ]
         );
         return result.insertId;
