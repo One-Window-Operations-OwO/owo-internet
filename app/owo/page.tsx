@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import dynamic from 'next/dynamic';
+import Sidebar from '../components/Sidebar';
+import StickyInfoBox from '../components/StickyInfoBox';
+import type { ProcessStatus } from '../components/ProcessStatusLight';
 
 // Dynamically import PdfViewer with SSR disabled to avoid DOMMatrix error
 const PdfViewer = dynamic(() => import('../components/PdfViewer'), {
@@ -40,6 +43,13 @@ interface ShipmentDetail {
     };
 }
 
+export interface Cluster {
+    id: number;
+    main_cluster: string;
+    sub_cluster: string;
+    nama_opsi: string;
+}
+
 export default function OwoPage() {
     const [queue, setQueue] = useState<BappItem[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -47,11 +57,48 @@ export default function OwoPage() {
     const [loadingList, setLoadingList] = useState(true);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [prefetchData, setPrefetchData] = useState<{ id: number; data: ShipmentDetail } | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Sidebar Position State
+    const [sidebarPosition, setSidebarPosition] = useState<"left" | "right">("left");
+
+    // Processing Status State
+    const [processingStatus, setProcessingStatus] = useState<ProcessStatus>("idle");
+    const [processingError, setProcessingError] = useState<string>("");
 
     // Image Modal State
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [zoom, setZoom] = useState(1);
     const [rotation, setRotation] = useState(0);
+    const [position, setPosition] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const imageRef = useRef<HTMLImageElement>(null);
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (zoom > 1) {
+            setIsDragging(true);
+            setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+        }
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (isDragging && zoom > 1) {
+            setPosition({
+                x: e.clientX - dragStart.x,
+                y: e.clientY - dragStart.y
+            });
+        }
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    useEffect(() => {
+        setPosition({ x: 0, y: 0 });
+    }, [selectedImage]);
 
     // PDF Modal State
     const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
@@ -59,6 +106,28 @@ export default function OwoPage() {
     const [pdfPageNumber, setPdfPageNumber] = useState(1);
     const [pdfZoom, setPdfZoom] = useState(1);
     const [pdfRotation, setPdfRotation] = useState(0);
+
+    // Rejection State
+    const [clusters, setClusters] = useState<Cluster[]>([]);
+    const [selectedRejections, setSelectedRejections] = useState<Record<string, string>>({});
+    const [customReason, setCustomReason] = useState<string>('');
+
+    useEffect(() => {
+        const fetchClusters = async () => {
+            try {
+                const res = await fetch('/api/master/clusters');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success) {
+                        setClusters(data.data);
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch clusters", error);
+            }
+        };
+        fetchClusters();
+    }, []);
 
     // Fetch the list of items for the workspace
     useEffect(() => {
@@ -91,39 +160,78 @@ export default function OwoPage() {
         fetchQueue();
     }, []);
 
-    // Fetch details when the current item changes
+    // Fetch details when the current item changes with prefetching
     useEffect(() => {
-        const fetchDetail = async () => {
+        let isMounted = true;
+
+        const loadCurrentAndPrefetchNext = async () => {
             if (queue.length === 0 || currentIndex >= queue.length) {
-                setCurrentDetail(null);
+                if (isMounted) setCurrentDetail(null);
                 return;
             }
 
-            const item = queue[currentIndex];
-            setLoadingDetail(true);
-            try {
-                const res = await fetch(`/api/fetch-data?id=${item.shipment_id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-                    }
-                });
+            const currentItem = queue[currentIndex];
+            const nextItem = currentIndex + 1 < queue.length ? queue[currentIndex + 1] : null;
 
-                if (!res.ok) {
-                    throw new Error(`Failed to fetch details for shipment ${item.shipment_id}`);
+            // 1. Load Current Item
+            if (prefetchData?.id === currentItem.shipment_id) {
+                if (isMounted) {
+                    setCurrentDetail(prefetchData.data);
+                    setLoadingDetail(false);
                 }
-                const data = await res.json();
-                setCurrentDetail(data);
-            } catch (err: any) {
-                console.error(err);
-            } finally {
-                setLoadingDetail(false);
+            } else {
+                if (isMounted) setLoadingDetail(true);
+                try {
+                    const res = await fetch(`/api/fetch-data?id=${currentItem.shipment_id}`, {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+                        }
+                    });
+
+                    if (!res.ok) {
+                        throw new Error(`Failed to fetch details for shipment ${currentItem.shipment_id}`);
+                    }
+                    const data = await res.json();
+                    if (isMounted) setCurrentDetail(data);
+                } catch (err: any) {
+                    console.error(err);
+                } finally {
+                    if (isMounted) setLoadingDetail(false);
+                }
+            }
+
+            // 2. Prefetch Next Item
+            if (nextItem) {
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    if (!isMounted) return;
+
+                    const res = await fetch(`/api/fetch-data?id=${nextItem.shipment_id}`, {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+                        }
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (isMounted) {
+                            setPrefetchData({ id: nextItem.shipment_id, data });
+                        }
+                    }
+                } catch (err) {
+                    console.error("Prefetch failed", err);
+                }
             }
         };
 
-        fetchDetail();
-    }, [queue, currentIndex]);
+        loadCurrentAndPrefetchNext();
+
+        return () => { isMounted = false; };
+    }, [queue, currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleNext = () => {
+        setSelectedRejections({});
+        setCustomReason('');
         if (currentIndex < queue.length - 1) {
             setCurrentIndex(prev => prev + 1);
         } else {
@@ -131,10 +239,104 @@ export default function OwoPage() {
         }
     };
 
+    const handleSubmit = async () => {
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+        setProcessingStatus("processing");
+        setProcessingError("");
+
+        const hasRejections = Object.keys(selectedRejections).length > 0 || !!customReason;
+        const status = hasRejections ? 'REJECTED' : 'APPROVED';
+
+        const token = localStorage.getItem('token');
+        const csrfToken = localStorage.getItem('csrf_token');
+        const userId = localStorage.getItem('user_id');
+
+        if (!token || !csrfToken || !userId) {
+            alert("Authentication tokens or User ID missing. Please login again.");
+            setIsSubmitting(false);
+            setProcessingStatus("error");
+            setProcessingError("Auth tokens or User ID missing");
+            return;
+        }
+
+        const currentItem = queue[currentIndex];
+        const evidenceIds = currentDetail?.evidences.data.map(e => e.id) || [];
+        let finalReason = '';
+
+        if (hasRejections) {
+            const reasons = Object.entries(selectedRejections)
+                .filter(([_, value]) => value)
+                .map(([key, value]) => `${key}: ${value}`);
+
+            if (customReason && !reasons.some(r => r.includes(customReason))) {
+                finalReason = customReason;
+            } else {
+                finalReason = reasons.join('; ');
+            }
+        }
+
+        try {
+            const body: any = {
+                shipment_id: currentItem.shipment_id,
+                status: status,
+                auth_token: token,
+                csrf_token: csrfToken
+            };
+
+            if (status === 'REJECTED') {
+                body.client_reject_reason = finalReason || "No reason provided";
+                body.evidence_ids = evidenceIds;
+            }
+
+            const res = await fetch('/api/update-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            if (res.ok) {
+                // Insert log to database
+                try {
+                    await fetch('/api/insert-log', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            cutoff_id: currentItem.id,
+                            serial_number: currentItem.starlink_id,
+                            user_id: parseInt(userId),
+                            rejections: selectedRejections
+                        })
+                    });
+                } catch (logError) {
+                    console.error("Failed to insert log:", logError);
+                }
+
+                setProcessingStatus("success");
+                setTimeout(() => setProcessingStatus("idle"), 2000);
+                handleNext();
+            } else {
+                const data = await res.json();
+                setProcessingStatus("error");
+                setProcessingError(data.error || 'Unknown error');
+                alert(`Failed to ${status.toLowerCase()}: ${data.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error("Action error:", error);
+            setProcessingStatus("error");
+            setProcessingError(String(error));
+            alert(`An error occurred while trying to ${status.toLowerCase()}.`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const openImageModal = (url: string) => {
+        setSelectedPdf(null);
         setSelectedImage(url);
         setZoom(1);
         setRotation(0);
+        setPosition({ x: 0, y: 0 });
     };
 
     const closeImageModal = () => {
@@ -152,6 +354,7 @@ export default function OwoPage() {
 
     // PDF Handlers
     const openPdfModal = (url: string) => {
+        setSelectedImage(null);
         setSelectedPdf(url);
         setPdfPageNumber(1);
         setPdfZoom(1);
@@ -183,6 +386,90 @@ export default function OwoPage() {
         setPdfRotation(0);
         setPdfPageNumber(1);
     };
+
+    // Navigation Helper
+    const switchEvidence = useCallback((direction: 'next' | 'prev') => {
+        if (!currentDetail?.evidences?.data?.length) return;
+
+        const evidences = currentDetail.evidences.data;
+        const currentUrl = selectedImage || selectedPdf;
+        const currentIdx = evidences.findIndex(e => {
+            const proxyUrl = `/api/proxy-file?path=${e.file_path}`;
+            return proxyUrl === currentUrl || currentUrl?.includes(encodeURIComponent(e.file_path));
+        });
+
+        const startIdx = currentIdx === -1 ? 0 : currentIdx;
+
+        let newIndex;
+        if (direction === 'next') {
+            newIndex = (startIdx + 1) % evidences.length;
+        } else {
+            newIndex = (startIdx - 1 + evidences.length) % evidences.length;
+        }
+
+        const nextEvidence = evidences[newIndex];
+        const nextUrl = `/api/proxy-file?path=${nextEvidence.file_path}`;
+        const isPdf = nextEvidence.file_path.toLowerCase().endsWith('.pdf');
+
+        if (isPdf) {
+            setSelectedImage(null);
+            openPdfModal(nextUrl);
+        } else {
+            setSelectedPdf(null);
+            openImageModal(nextUrl);
+        }
+    }, [currentDetail, selectedImage, selectedPdf]);
+
+    // Keyboard Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!selectedImage && !selectedPdf) return;
+
+            switch (e.key.toLowerCase()) {
+                case 'escape':
+                    closeImageModal();
+                    closePdfModal();
+                    break;
+                case 'a':
+                    switchEvidence('prev');
+                    break;
+                case 'd':
+                    switchEvidence('next');
+                    break;
+                case 'q':
+                    if (selectedImage) handleRotateLeft();
+                    if (selectedPdf) handlePdfRotateLeft();
+                    break;
+                case 'e':
+                    if (selectedImage) handleRotateRight();
+                    if (selectedPdf) handlePdfRotateRight();
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedImage, selectedPdf, switchEvidence]);
+
+    // Mouse Wheel Handler
+    const handleWheel = useCallback((e: React.WheelEvent) => {
+        if (!selectedImage && !selectedPdf) return;
+
+        if (selectedImage) {
+            e.stopPropagation();
+            const delta = e.deltaY * -0.001;
+            const newScale = delta > 0 ? 0.1 : -0.1;
+            setZoom(prev => Math.min(Math.max(0.2, prev + newScale), 5));
+        } else if (selectedPdf) {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                const delta = e.deltaY * -0.001;
+                const newScale = delta > 0 ? 0.1 : -0.1;
+                setPdfZoom(prev => Math.min(Math.max(0.5, prev + newScale), 5));
+            }
+        }
+    }, [selectedImage, selectedPdf]);
 
 
     if (loadingList) {
@@ -247,355 +534,351 @@ export default function OwoPage() {
     const currentItem = queue[currentIndex];
 
     return (
-        <div className="space-y-8 max-w-7xl mx-auto pb-20">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-neutral-200 pb-6">
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-neutral-900">Workspace</h2>
-                    <p className="mt-2 text-sm text-neutral-500 flex items-center gap-2">
-                        <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                            Item {currentIndex + 1} of {queue.length}
-                        </span>
-                        Processing queue...
-                    </p>
-                </div>
-                <div className="flex gap-4">
-                    <button
-                        onClick={handleNext}
-                        className="group inline-flex items-center gap-x-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-neutral-900 shadow-sm ring-1 ring-inset ring-neutral-300 hover:bg-neutral-50 transition-all"
-                    >
-                        Skip Item
-                        <svg className="h-5 w-5 text-neutral-400 group-hover:text-neutral-600" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
+        <div className="flex h-screen w-full bg-zinc-50 dark:bg-black overflow-hidden relative">
+            {/* Sidebar */}
+            <div className={`flex-shrink-0 h-full ${sidebarPosition === "left" ? "order-1 border-r border-zinc-700" : "order-2 border-l border-zinc-700"}`}>
+                <Sidebar
+                    currentIndex={currentIndex}
+                    totalItems={queue.length}
+                    clusters={clusters}
+                    selectedRejections={selectedRejections}
+                    setSelectedRejections={setSelectedRejections}
+                    customReason={customReason}
+                    setCustomReason={setCustomReason}
+                    onSubmit={handleSubmit}
+                    onSkip={handleNext}
+                    isSubmitting={isSubmitting}
+                    processingStatus={processingStatus}
+                    errorMessage={processingError}
+                    onRetry={handleSubmit}
+                    position={sidebarPosition}
+                    setPosition={setSidebarPosition}
+                />
             </div>
 
-            <div className="flex flex-col gap-8">
-                {/* Top Section: Information */}
-                <div className="space-y-6">
-                    {/* BAPP Card */}
-                    <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-                        <div className="border-b border-neutral-100 bg-neutral-50/50 px-6 py-4">
-                            <h3 className="text-base font-semibold leading-7 text-neutral-900">School Information</h3>
-                        </div>
-                        <div className="px-6 py-6">
-                            <dl className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div>
-                                    <dt className="text-xs font-medium text-neutral-500 uppercase tracking-wider">School Name</dt>
-                                    <dd className="mt-1 text-base font-medium text-neutral-900">{currentItem.school_name}</dd>
+            {/* Main Content */}
+            <div className={`flex-1 h-full overflow-hidden relative bg-zinc-50/50 dark:bg-zinc-900/50 ${sidebarPosition === "left" ? "order-2" : "order-1"}`}>
+                <div className="h-full overflow-y-auto p-4 md:p-6 custom-scrollbar">
+                    {currentDetail && !loadingDetail ? (
+                        <div className="max-w-5xl mx-auto flex flex-col gap-6">
+                            {/* School Info Card */}
+                            <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5 relative">
+                                <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 border-b dark:border-zinc-700 pb-2">
+                                    Informasi Sekolah
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8">
+                                    <InfoItem label="Nama Sekolah" value={currentItem.school_name} />
+                                    <InfoItem label="NPSN" value={currentItem.npsn} />
+                                    <InfoItem label="Resi Number" value={currentItem.resi_number} />
+                                    <InfoItem label="Starlink ID" value={currentItem.starlink_id} />
+                                    <InfoItem label="Received Date" value={new Date(currentItem.received_date).toLocaleDateString('id-ID', {
+                                        weekday: 'long',
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric'
+                                    })} />
+                                    <InfoItem label="Status" value={currentDetail?.shipment?.status || 'Unknown'} />
                                 </div>
-                                <div>
-                                    <dt className="text-xs font-medium text-neutral-500 uppercase tracking-wider">NPSN</dt>
-                                    <dd className="mt-1 text-sm font-medium text-neutral-900 bg-neutral-100 inline-block px-2 py-1 rounded">{currentItem.npsn}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Resi Number</dt>
-                                    <dd className="mt-1 text-sm font-medium text-neutral-900">{currentItem.resi_number}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Shipment Status</dt>
-                                    <dd className="mt-1">
-                                        {currentDetail ? (
-                                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${currentDetail.shipment?.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
-                                                currentDetail.shipment?.status === 'SHIPPED' ? 'bg-blue-100 text-blue-800' :
-                                                    'bg-gray-100 text-gray-800'
-                                                }`}>
-                                                {currentDetail.shipment?.status || 'Unknown'}
-                                            </span>
-                                        ) : (
-                                            <div className="h-5 w-20 bg-neutral-200 animate-pulse rounded"></div>
-                                        )}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Starlink ID</dt>
-                                    <dd className="mt-1 text-sm font-medium text-neutral-900 font-mono tracking-tight">{currentItem.starlink_id}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Received Date</dt>
-                                    <dd className="mt-1 text-sm text-neutral-700 flex items-center gap-2">
-                                        <svg className="h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                        </svg>
-                                        {new Date(currentItem.received_date).toLocaleDateString(undefined, {
-                                            weekday: 'long',
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
-                                    </dd>
-                                </div>
-                            </dl>
-                        </div>
-                    </div>
-                </div>
+                            </div>
 
-                {/* Bottom Section: Evidence & Media */}
-                <div className="space-y-6">
-                    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm h-full flex flex-col">
-                        <div className="border-b border-neutral-100 bg-white px-6 py-4 flex justify-between items-center sticky top-0 z-10">
-                            <h3 className="text-base font-semibold text-neutral-900 flex items-center gap-2">
-                                <svg className="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                Evidence Gallery
-                            </h3>
-                            {(currentDetail?.evidences?.data?.length ?? 0) > 0 && (
-                                <span className="text-xs text-neutral-500">{currentDetail?.evidences?.data?.length} files attached</span>
-                            )}
-                        </div>
-
-                        <div className="p-6 flex-1 bg-neutral-50/30">
-                            {loadingDetail ? (
-                                <div className="flex h-64 items-center justify-center">
-                                    <div className="flex flex-col items-center gap-3">
-                                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-neutral-300 border-t-neutral-600"></div>
-                                        <p className="text-sm text-neutral-500">Fetching evidences...</p>
-                                    </div>
+                            {/* Data Barang Card */}
+                            <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
+                                <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 border-b dark:border-zinc-700 pb-2">
+                                    Data Perangkat
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
+                                    <InfoItem label="Shipment ID" value={String(currentItem.shipment_id)} />
+                                    <InfoItem label="Starlink ID" value={currentItem.starlink_id} />
                                 </div>
-                            ) : currentDetail ? (
-                                <div>
-                                    {currentDetail.evidences?.data && Array.isArray(currentDetail.evidences.data) && currentDetail.evidences.data.length > 0 ? (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                            {currentDetail.evidences.data.map((ev, idx) => {
-                                                const fileUrl = `/api/proxy-file?path=${ev.file_path}`;
-                                                const isPdf = ev.file_path.toLowerCase().endsWith('.pdf');
-                                                const fileName = ev.file_path.split('/').pop() || 'Unknown File';
+                            </div>
 
-                                                return (
-                                                    <div key={idx} className="group relative break-inside-avoid rounded-lg border border-neutral-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col h-[400px]">
-                                                        <div className="p-3 border-b border-neutral-50 flex items-center justify-between">
-                                                            <div className="flex items-center gap-2 overflow-hidden w-full">
-                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${ev.category === 'BAPP' ? 'bg-purple-100 text-purple-800' :
-                                                                    ev.category === 'FOTO_PERANGKAT' ? 'bg-blue-100 text-blue-800' :
-                                                                        'bg-gray-100 text-gray-800'
-                                                                    }`}>
-                                                                    {ev.category || 'Unknown'}
-                                                                </span>
-                                                                <span className="text-xs text-neutral-400 truncate flex-1 text-right" title={fileName}>{fileName}</span>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="relative flex-1 w-full overflow-hidden bg-neutral-100 flex items-center justify-center min-h-0">
-                                                            {isPdf ? (
-                                                                <div className="w-full h-full overflow-hidden flex flex-col cursor-pointer" onClick={() => openPdfModal(fileUrl)}>
-                                                                    <div className="flex-1 w-full overflow-hidden flex justify-center items-start bg-neutral-200 p-2 relative group/pdf">
-                                                                        <PdfViewer
-                                                                            file={fileUrl}
-                                                                            pageNumber={1}
-                                                                            width={280}
-                                                                            className="shadow-lg max-h-full"
-                                                                        />
-                                                                        {/* Overlay */}
-                                                                        <div className="absolute inset-0 bg-black/0 group-hover/pdf:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover/pdf:opacity-100 pointer-events-none">
-                                                                            <span className="bg-black/70 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm flex items-center gap-1">
-                                                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                                                View PDF
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="h-8 bg-white border-t border-neutral-200 flex items-center justify-center text-xs text-neutral-500">
-                                                                        Click to view
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="group/image relative h-full w-full cursor-pointer bg-neutral-50" onClick={() => openImageModal(fileUrl)}>
-                                                                    <img
-                                                                        src={fileUrl}
-                                                                        alt={fileName}
-                                                                        className="h-full w-full object-contain"
-                                                                        loading="lazy"
-                                                                    />
-                                                                    {/* Overlay */}
-                                                                    <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover/image:opacity-100">
-                                                                        <span className="bg-black/70 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm flex items-center gap-1">
-                                                                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
-                                                                            Zoom
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center py-20 text-neutral-400">
-                                            <svg className="h-16 w-16 mb-4 text-neutral-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                            <p className="text-sm">No evidence files attached to this shipment.</p>
-                                        </div>
+                            {/* Evidence Gallery Card */}
+                            <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
+                                <div className="flex justify-between items-center mb-4 border-b dark:border-zinc-700 pb-2">
+                                    <h2 className="text-lg font-semibold text-zinc-900 dark:text-white flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                                        Dokumentasi Pengiriman
+                                    </h2>
+                                    {(currentDetail?.evidences?.data?.length ?? 0) > 0 && (
+                                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                            {currentDetail?.evidences?.data?.length} files
+                                        </span>
                                     )}
                                 </div>
+
+                                {currentDetail.evidences?.data && Array.isArray(currentDetail.evidences.data) && currentDetail.evidences.data.length > 0 ? (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                        {currentDetail.evidences.data.map((ev, idx) => {
+                                            const fileUrl = `/api/proxy-file?path=${ev.file_path}`;
+                                            const isPdf = ev.file_path.toLowerCase().endsWith('.pdf');
+                                            const fileName = ev.file_path.split('/').pop() || 'Unknown File';
+
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className="group relative cursor-pointer"
+                                                    onClick={() => isPdf ? openPdfModal(fileUrl) : openImageModal(fileUrl)}
+                                                >
+                                                    <div className="aspect-square w-full overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900">
+                                                        {isPdf ? (
+                                                            <div className="h-full w-full flex flex-col items-center justify-center bg-zinc-200 dark:bg-zinc-800 p-2">
+                                                                <PdfViewer
+                                                                    file={fileUrl}
+                                                                    pageNumber={1}
+                                                                    width={150}
+                                                                    className="shadow-lg max-h-full"
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <img
+                                                                src={fileUrl}
+                                                                alt={fileName}
+                                                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                                                loading="lazy"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    <p className="mt-2 text-xs font-medium text-center text-zinc-600 dark:text-zinc-400 truncate">
+                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1 ${ev.category === 'BAPP' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
+                                                            ev.category === 'FOTO_PERANGKAT' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                                'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400'
+                                                            }`}>
+                                                            {ev.category || 'File'}
+                                                        </span>
+                                                        {fileName}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 text-zinc-400 text-sm italic">
+                                        No evidence files attached to this shipment.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex h-full items-center justify-center flex-col gap-4 text-zinc-500">
+                            {loadingDetail
+                                ? "Loading task data..."
+                                : queue.length === 0
+                                    ? "Fetching task list..."
+                                    : "Select an item to view details"}
+                        </div>
+                    )}
+                </div>
+
+                {/* Inline Viewer (Image/PDF) - Overlays the main content */}
+                {(selectedImage || selectedPdf) && (
+                    <div
+                        className="absolute inset-0 z-50 bg-black/95 backdrop-blur-sm flex flex-col h-full"
+                        onWheel={handleWheel}
+                    >
+                        {/* Toolbar */}
+                        <div className="flex-none p-4 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between shadow-md z-10">
+                            <div className="text-white text-sm font-medium truncate max-w-md flex items-center gap-2">
+                                <span className="bg-neutral-800 px-2 py-0.5 rounded text-xs text-neutral-400 border border-neutral-700">Preview</span>
+                                {selectedPdf
+                                    ? selectedPdf.split('/').pop()
+                                    : selectedImage?.split('/').pop()}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {selectedImage && (
+                                    <>
+                                        <div className="flex items-center bg-neutral-800 rounded-lg p-1 border border-neutral-700">
+                                            <button onClick={handleZoomOut} className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded-md transition-colors" title="Zoom Out">
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
+                                            </button>
+                                            <span className="text-xs font-mono text-neutral-300 min-w-[3.5ch] text-center select-none">{zoom.toFixed(1)}x</span>
+                                            <button onClick={handleZoomIn} className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded-md transition-colors" title="Zoom In">
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
+                                            </button>
+                                        </div>
+                                        <div className="w-px h-6 bg-neutral-800 mx-1"></div>
+                                        <div className="flex items-center bg-neutral-800 rounded-lg p-1 border border-neutral-700">
+                                            <button onClick={handleRotateLeft} className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded-md transition-colors" title="Rotate Left">
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+                                            </button>
+                                            <button onClick={handleRotateRight} className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded-md transition-colors" title="Rotate Right">
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg>
+                                            </button>
+                                        </div>
+                                        <div className="w-px h-6 bg-neutral-800 mx-1"></div>
+                                        <button onClick={handleReset} className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors border border-transparent hover:border-neutral-700" title="Reset view">
+                                            Reset
+                                        </button>
+                                    </>
+                                )}
+                                {selectedPdf && (
+                                    <>
+                                        <div className="w-px h-6 bg-neutral-800 mx-1"></div>
+                                        <div className="flex items-center bg-neutral-800 rounded-lg p-1 border border-neutral-700">
+                                            <button onClick={handlePdfZoomOut} className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded-md transition-colors" title="Zoom Out">
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
+                                            </button>
+                                            <span className="text-xs font-mono text-neutral-300 min-w-[3.5ch] text-center select-none">{pdfZoom.toFixed(1)}x</span>
+                                            <button onClick={handlePdfZoomIn} className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded-md transition-colors" title="Zoom In">
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
+                                            </button>
+                                        </div>
+                                        <div className="w-px h-6 bg-neutral-800 mx-1"></div>
+                                        <div className="flex items-center bg-neutral-800 rounded-lg p-1 border border-neutral-700">
+                                            <button onClick={handlePdfRotateLeft} className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded-md transition-colors" title="Rotate Left">
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+                                            </button>
+                                            <button onClick={handlePdfRotateRight} className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded-md transition-colors" title="Rotate Right">
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg>
+                                            </button>
+                                        </div>
+                                        <div className="w-px h-6 bg-neutral-800 mx-1"></div>
+                                        <button onClick={handlePdfReset} className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors border border-transparent hover:border-neutral-700" title="Reset view">
+                                            Reset
+                                        </button>
+                                    </>
+                                )}
+                                <div className="w-px h-6 bg-neutral-800 mx-1"></div>
+                                <button
+                                    onClick={() => {
+                                        closeImageModal();
+                                        closePdfModal();
+                                    }}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 text-xs font-medium rounded-lg transition-colors border border-red-500/20"
+                                    title="Close Viewer"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+
+
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-neutral-950">
+                            {selectedPdf ? (
+                                <div className="w-full h-full p-4 overflow-auto flex justify-center custom-scrollbar">
+                                    <PdfViewer
+                                        file={selectedPdf!}
+                                        allPages={true}
+                                        scale={pdfZoom}
+                                        rotate={pdfRotation}
+                                        onLoadSuccess={onDocumentLoadSuccess}
+                                        width={1000}
+                                        className="shadow-2xl"
+                                    />
+                                </div>
                             ) : (
-                                <div className="flex h-64 items-center justify-center">
-                                    <p className="text-sm text-neutral-400 italic">Select an item to view details</p>
+                                <div
+                                    className="w-full h-full overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing p-8"
+                                    onMouseDown={handleMouseDown}
+                                    onMouseMove={handleMouseMove}
+                                    onMouseUp={handleMouseUp}
+                                    onMouseLeave={handleMouseUp}
+                                >
+                                    <img
+                                        ref={imageRef}
+                                        src={selectedImage!}
+                                        alt="Preview"
+                                        className="max-w-none transition-transform duration-200 ease-out shadow-2xl"
+                                        draggable={false}
+                                        style={{
+                                            transform: `scale(${zoom}) rotate(${rotation}deg) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
+                                            maxHeight: '100%',
+                                            maxWidth: '100%'
+                                        }}
+                                    />
                                 </div>
                             )}
                         </div>
+
+                        {/* Thumbnail Strip Footer */}
+                        <div className="flex-none h-32 bg-neutral-900 border-t border-neutral-800 p-4 relative z-20">
+                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-b from-black/20 to-transparent"></div>
+                            <div className="flex gap-3 h-full items-center p-1 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-neutral-800 pb-2">
+                                {currentDetail?.evidences?.data?.map((ev, idx) => {
+                                    const fileUrl = `/api/proxy-file?path=${ev.file_path}`;
+                                    const isPdf = ev.file_path.toLowerCase().endsWith('.pdf');
+                                    const isSelected = selectedImage === fileUrl || selectedPdf === fileUrl;
+
+                                    return (
+                                        <button
+                                            key={idx}
+                                            onClick={() => {
+                                                if (isPdf) {
+                                                    openPdfModal(fileUrl);
+                                                } else {
+                                                    openImageModal(fileUrl);
+                                                }
+                                            }}
+                                            className={`relative group h-20 w-20 flex-shrink-0 rounded-lg overflow-hidden border transition-all duration-200 ${isSelected
+                                                ? 'border-blue-500 ring-2 ring-blue-500/30 scale-100'
+                                                : 'border-neutral-700 opacity-60 hover:opacity-100 hover:border-neutral-500 hover:scale-105'
+                                                }`}
+                                        >
+                                            {isPdf ? (
+                                                <div className="w-full h-full bg-neutral-800 flex flex-col items-center justify-center p-1">
+                                                    <svg className="w-6 h-6 text-red-500 mb-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                                                    <span className="text-[9px] text-neutral-400 truncate w-full text-center">PDF</span>
+                                                </div>
+                                            ) : (
+                                                <img
+                                                    src={fileUrl}
+                                                    alt={`Thumb ${idx}`}
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                />
+                                            )}
+                                            <div className="absolute bottom-0 inset-x-0 bg-black/80 py-0.5 px-0.5 truncate">
+                                                <span className="text-[8px] text-white font-medium block text-center truncate">
+                                                    {ev.category?.replace('_', ' ') || 'File'}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
 
-            {/* Action Bar - Floating at bottom */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 z-20">
-                <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-neutral-200 p-4 flex items-center justify-between">
-                    <div>
-                        <h4 className="text-sm font-semibold text-neutral-900">Verification Action</h4>
-                        <p className="text-xs text-neutral-500">Review evidences carefully</p>
-                    </div>
-                    <div className="flex gap-3">
-                        {/* Future buttons */}
-                        <button
-                            className="rounded-lg bg-neutral-100 px-5 py-2.5 text-sm font-semibold text-neutral-400 hover:bg-neutral-200 transition-colors cursor-not-allowed"
-                            disabled
-                        >
-                            Reject
-                        </button>
-                        <button
-                            className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 transition-colors shadow-blue-200 hover:shadow-blue-300"
-                            disabled
-                        >
-                            Verify & Proceed
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Image Modal */}
-            {selectedImage && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 animate-in fade-in duration-200">
-                    <div className="relative w-full h-full flex flex-col items-center">
-                        {/* Toolbar */}
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-neutral-800/90 backdrop-blur-md p-2 rounded-full shadow-2xl z-50 border border-white/10">
-                            <button onClick={handleZoomOut} className="p-2.5 text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Zoom Out">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
-                            </button>
-                            <span className="text-xs font-mono text-white min-w-[4ch] text-center select-none">{zoom.toFixed(1)}x</span>
-                            <button onClick={handleZoomIn} className="p-2.5 text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Zoom In">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
-                            </button>
-                            <div className="w-px h-5 bg-white/10 mx-1"></div>
-                            <button onClick={handleRotateLeft} className="p-2.5 text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Rotate Left">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
-                            </button>
-                            <button onClick={handleRotateRight} className="p-2.5 text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Rotate Right">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg>
-                            </button>
-                            <div className="w-px h-5 bg-white/10 mx-1"></div>
-                            <button onClick={handleReset} className="px-3 py-1.5 text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Reset">
-                                Reset
-                            </button>
-                            <div className="w-px h-5 bg-white/10 mx-1"></div>
-                            <button onClick={closeImageModal} className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-full transition-colors" title="Close">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-
-                        {/* Image Canvas */}
-                        <div
-                            className="flex-1 w-full h-full flex items-center justify-center overflow-auto cursor-grab active:cursor-grabbing p-8"
-                            onClick={(e) => e.target === e.currentTarget && closeImageModal()}
-                        >
-                            <img
-                                src={selectedImage}
-                                alt="Evidence Fullscreen"
-                                style={{
-                                    transform: `scale(${zoom}) rotate(${rotation}deg)`,
-                                    transition: 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)'
-                                }}
-                                className="max-w-full max-h-full object-contain shadow-2xl rounded-sm"
-                                draggable={false}
-                            />
-                        </div>
-                        <div className="absolute bottom-4 text-white/50 text-xs pointer-events-none">
-                            Click outside or press ESC to close • Scroll to zoom
-                        </div>
-                    </div>
-                </div>
+            {/* StickyInfoBox - Floating info when viewer is open */}
+            {(selectedImage || selectedPdf) && currentItem && (
+                <StickyInfoBox
+                    schoolName={currentItem.school_name}
+                    npsn={currentItem.npsn}
+                    starlinkId={currentItem.starlink_id}
+                    resiNumber={currentItem.resi_number}
+                    shipmentStatus={currentDetail?.shipment?.status || 'Unknown'}
+                    receivedDate={new Date(currentItem.received_date).toLocaleDateString('id-ID', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    })}
+                />
             )}
+        </div>
+    );
+}
 
-            {/* PDF Modal */}
-            {selectedPdf && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 animate-in fade-in duration-200">
-                    <div className="relative w-full h-full flex flex-col items-center">
-                        {/* Toolbar */}
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-neutral-800/90 backdrop-blur-md p-2 rounded-full shadow-2xl z-50 border border-white/10">
-                            {/* Pagination */}
-                            <button
-                                onClick={() => changePdfPage(-1)}
-                                disabled={pdfPageNumber <= 1}
-                                className="p-2.5 text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
-                                title="Previous Page"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-                            </button>
-                            <span className="text-xs font-mono text-white min-w-[6ch] text-center select-none">
-                                {pdfPageNumber} / {pdfNumPages || '--'}
-                            </span>
-                            <button
-                                onClick={() => changePdfPage(1)}
-                                disabled={!pdfNumPages || pdfPageNumber >= pdfNumPages}
-                                className="p-2.5 text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
-                                title="Next Page"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                            </button>
-
-                            <div className="w-px h-5 bg-white/10 mx-1"></div>
-
-                            <button onClick={handlePdfZoomOut} className="p-2.5 text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Zoom Out">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
-                            </button>
-                            <span className="text-xs font-mono text-white min-w-[4ch] text-center select-none">{pdfZoom.toFixed(1)}x</span>
-                            <button onClick={handlePdfZoomIn} className="p-2.5 text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Zoom In">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
-                            </button>
-
-                            <div className="w-px h-5 bg-white/10 mx-1"></div>
-
-                            <button onClick={handlePdfRotateLeft} className="p-2.5 text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Rotate Left">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
-                            </button>
-                            <button onClick={handlePdfRotateRight} className="p-2.5 text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Rotate Right">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg>
-                            </button>
-
-                            <div className="w-px h-5 bg-white/10 mx-1"></div>
-
-                            <button onClick={handlePdfReset} className="px-3 py-1.5 text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Reset">
-                                Reset
-                            </button>
-
-                            <div className="w-px h-5 bg-white/10 mx-1"></div>
-
-                            <button onClick={closePdfModal} className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-full transition-colors" title="Close">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-
-                        {/* PDF Viewport */}
-                        <div
-                            className="flex-1 w-full h-full flex items-center justify-center overflow-auto p-8"
-                            onClick={(e) => e.target === e.currentTarget && closePdfModal()}
-                        >
-                            <PdfViewer
-                                file={selectedPdf}
-                                pageNumber={pdfPageNumber}
-                                scale={pdfZoom}
-                                rotate={pdfRotation}
-                                onLoadSuccess={onDocumentLoadSuccess}
-                                className="shadow-2xl"
-                            />
-                        </div>
-                        <div className="absolute bottom-4 text-white/50 text-xs pointer-events-none">
-                            Click outside or press ESC to close • Scroll/Drag to view
-                        </div>
-                    </div>
-                </div>
-            )}
+function InfoItem({
+    label,
+    value,
+    full,
+}: {
+    label: string;
+    value: string;
+    full?: boolean;
+}) {
+    return (
+        <div className={`flex flex-col ${full ? 'col-span-full' : ''}`}>
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">
+                {label}
+            </span>
+            <span className="text-sm font-medium text-zinc-900 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-900/50 p-2 rounded border border-zinc-200 dark:border-zinc-700/50 block min-h-[38px]">
+                {value || '-'}
+            </span>
         </div>
     );
 }
