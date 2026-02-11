@@ -18,14 +18,14 @@ export async function createLogsTable() {
             status ENUM('REJECTED', 'VERIFIED') NOT NULL,
             
             FOREIGN KEY (cutoff_id) REFERENCES cutoff(id) ON DELETE CASCADE,
-            FOREIGN KEY (geo_tagging) REFERENCES sub_cluster(id) ON DELETE SET NULL,
-            FOREIGN KEY (foto_sekolah) REFERENCES sub_cluster(id) ON DELETE SET NULL,
-            FOREIGN KEY (foto_box_dan_pic) REFERENCES sub_cluster(id) ON DELETE SET NULL,
-            FOREIGN KEY (kelengkapan_unit) REFERENCES sub_cluster(id) ON DELETE SET NULL,
-            FOREIGN KEY (foto_serial_number_kardus) REFERENCES sub_cluster(id) ON DELETE SET NULL,
-            FOREIGN KEY (serial_number_bapp) REFERENCES sub_cluster(id) ON DELETE SET NULL,
-            FOREIGN KEY (perangkat_terhubung_internet) REFERENCES sub_cluster(id) ON DELETE SET NULL,
-            FOREIGN KEY (bapp) REFERENCES sub_cluster(id) ON DELETE SET NULL,
+            FOREIGN KEY (geo_tagging) REFERENCES cluster(id) ON DELETE SET NULL,
+            FOREIGN KEY (foto_sekolah) REFERENCES cluster(id) ON DELETE SET NULL,
+            FOREIGN KEY (foto_box_dan_pic) REFERENCES cluster(id) ON DELETE SET NULL,
+            FOREIGN KEY (kelengkapan_unit) REFERENCES cluster(id) ON DELETE SET NULL,
+            FOREIGN KEY (foto_serial_number_kardus) REFERENCES cluster(id) ON DELETE SET NULL,
+            FOREIGN KEY (serial_number_bapp) REFERENCES cluster(id) ON DELETE SET NULL,
+            FOREIGN KEY (perangkat_terhubung_internet) REFERENCES cluster(id) ON DELETE SET NULL,
+            FOREIGN KEY (bapp) REFERENCES cluster(id) ON DELETE SET NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
     `;
