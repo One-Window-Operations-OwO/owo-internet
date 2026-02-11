@@ -9,9 +9,9 @@ export async function GET(req: NextRequest) {
         return new NextResponse("Missing path parameter", { status: 400 });
     }
 
-    const evidenceUrl = process.env.NEXT_PUBLIC_EVIDENCE_URL;
+    const evidenceUrl = process.env.SKYLINK_URL + "/api/v1/static";
     if (!evidenceUrl) {
-        return new NextResponse("Configuration error: NEXT_PUBLIC_EVIDENCE_URL not set", { status: 500 });
+        return new NextResponse("Configuration error: SKYLINK_URL not set", { status: 500 });
     }
 
     const targetUrl = `${evidenceUrl}/${path}`;

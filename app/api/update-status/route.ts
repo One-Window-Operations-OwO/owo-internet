@@ -8,16 +8,34 @@ export async function POST(request: Request) {
             status,
             client_reject_reason,
             evidence_ids,
-            auth_token,
+            auth_token, // keep for backward compatibility if passed, but prefer cookie
             csrf_token
         } = body;
+
+        // Get token from cookie
+        // Note: In Next.js App Router, cookies() is a function but in route handlers (req: Request), we use req.headers or similar
+        // For NextRequest specifically we can use req.cookies
+        // But here it is defined as (request: Request). We can cast or use new NextResponse(request).cookies? No.
+        // Let's coerce to NextRequest or use standard headers
+        const cookieHeaderVal = request.headers.get('cookie') || '';
+
+        // Simple manual parsing or use NextRequest
+        // Let's use NextRequest pattern which is better
+        // BUT we need to change signature if we want specific NextRequest methods easily, 
+        // OR just parse the cookie header manually to be safe with standard Request
+
+        let accessToken = auth_token;
+        if (!accessToken) {
+            const match = cookieHeaderVal.match(/access_token=([^;]+)/);
+            if (match) accessToken = match[1];
+        }
 
         if (!shipment_id || !status) {
             return NextResponse.json({ error: 'Missing shipment_id or status' }, { status: 400 });
         }
 
-        if (!auth_token || !csrf_token) {
-            return NextResponse.json({ error: 'Missing authentication tokens (auth_token, csrf_token)' }, { status: 400 });
+        if (!accessToken || !csrf_token) {
+            return NextResponse.json({ error: 'Missing authentication tokens (access_token/auth_token, csrf_token)' }, { status: 401 });
         }
 
         const skylinkUrl = process.env.SKYLINK_URL;
@@ -35,15 +53,15 @@ export async function POST(request: Request) {
             };
         }
 
-        const cookieHeader = `auth_token=${auth_token}; csrf_token=${csrf_token}`;
+        const upstreamCookieHeader = `auth_token=${accessToken}; csrf_token=${csrf_token}`;
 
         const response = await fetch(url, {
             method: 'PATCH',
             headers: {
                 accept: "*/*",
-                "authorization": `Bearer ${auth_token}`,
+                "authorization": `Bearer ${accessToken}`,
                 "x-csrf-token": csrf_token,
-                "cookie": cookieHeader,
+                "cookie": upstreamCookieHeader,
                 "content-type": "application/json",
             },
             body: JSON.stringify(skylinkBody)

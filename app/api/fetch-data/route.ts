@@ -12,15 +12,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
+    const accessToken = req.cookies.get("access_token")?.value;
+
+    if (!accessToken) {
       return NextResponse.json(
-        { message: "Authorization header is required" },
+        { message: "Unauthorized - No access token" },
         { status: 401 }
       );
     }
 
     const skylinkUrl = process.env.SKYLINK_URL;
+    const authHeader = `Bearer ${accessToken}`;
 
     // Fetch both endpoints in parallel
     const [shipmentRes, evidencesRes] = await Promise.all([

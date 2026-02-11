@@ -116,6 +116,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 // Update local storage items
                 if (data.csrf_token) localStorage.setItem("csrf_token", data.csrf_token);
                 if (data.user_id) localStorage.setItem("user_id", String(data.user_id));
+                if (data.access_token) localStorage.setItem("access_token", data.access_token);
 
                 // Reload to refresh cookie state in browser
                 window.location.reload();

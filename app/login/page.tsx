@@ -42,6 +42,9 @@ export default function LoginPage() {
             if (data.user_id) {
                 localStorage.setItem("user_id", String(data.user_id));
             }
+            if (data.access_token) {
+                localStorage.setItem("access_token", data.access_token);
+            }
 
             // Store credentials for auto-relogin (User Request)
             localStorage.setItem("auth_username", username);
