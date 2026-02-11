@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { insertCutoffData, getCutoffDataByUser } from '@/lib/db/cutoff';
+import { insertCutoffData, getCutoffDataByUser, insertCutoffHistoryLog } from '@/lib/db/cutoff';
 import { checkExistingResiNumbers } from '@/lib/db/cutoff';
 
 export async function POST(request: Request) {
@@ -93,6 +93,19 @@ export async function POST(request: Request) {
         if (dataToInsert.length > 0) {
             await insertCutoffData(dataToInsert);
         }
+
+        // Log history
+        await insertCutoffHistoryLog({
+            total_new_items: totalItems,
+            users_count: totalUsers,
+            base_per_user: baseCount,
+            remainder: remainder,
+            skipped_count: allShipments.length - newShipments.length,
+            details: {
+                userIds,
+                distribution_logic: "sequential"
+            }
+        });
 
         return NextResponse.json({
             success: true,

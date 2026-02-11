@@ -8,12 +8,14 @@ export async function register() {
             const { createSubClusterTable } = await import("@/lib/db/clusters");
             const { createCutoffTable } = await import("@/lib/db/cutoff");
             const { createLogsTable } = await import("@/lib/db/logs");
+            const { createCutoffHistoryLogTable } = await import("@/lib/db/cutoff");
 
             await createDatabaseIfNotExists();
             await createUserTable();
             await seedUsers();
             await createSubClusterTable();
             await createCutoffTable();
+            await createCutoffHistoryLogTable();
             await createLogsTable();
 
             console.log('Instrumentation: Database initialized successfully');

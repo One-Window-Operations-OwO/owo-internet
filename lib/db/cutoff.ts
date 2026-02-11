@@ -104,3 +104,57 @@ export async function getUnloggedCutoffByUser(userId: string) {
         conn.release();
     }
 }
+
+export async function createCutoffHistoryLogTable() {
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS cutoff_history_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            total_new_items INT NOT NULL,
+            users_count INT NOT NULL,
+            base_per_user INT NOT NULL,
+            remainder INT NOT NULL,
+            skipped_count INT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            executed_by INT NULL,
+            details JSON NULL,
+            FOREIGN KEY (executed_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+    `;
+    const conn = await pool.getConnection();
+    try {
+        await conn.query(createTableQuery);
+    } finally {
+        conn.release();
+    }
+}
+
+export async function insertCutoffHistoryLog(data: {
+    total_new_items: number;
+    users_count: number;
+    base_per_user: number;
+    remainder: number;
+    skipped_count: number;
+    executed_by?: number;
+    details?: any;
+}) {
+    const query = `
+        INSERT INTO cutoff_history_log 
+        (total_new_items, users_count, base_per_user, remainder, skipped_count, executed_by, details)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const conn = await pool.getConnection();
+    try {
+        await conn.query(query, [
+            data.total_new_items,
+            data.users_count,
+            data.base_per_user,
+            data.remainder,
+            data.skipped_count,
+            data.executed_by || null,
+            data.details ? JSON.stringify(data.details) : null
+        ]);
+    } finally {
+        conn.release();
+    }
+}
