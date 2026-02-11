@@ -2,14 +2,20 @@ import { NextResponse } from 'next/server';
 import { insertCutoffData, getCutoffDataByUser, insertCutoffHistoryLog } from '@/lib/db/cutoff';
 import { checkExistingResiNumbers } from '@/lib/db/cutoff';
 
+import { cookies } from 'next/headers';
+
 export async function POST(request: Request) {
     try {
-        const { userIds, token } = await request.json();
+        const { userIds } = await request.json();
+
+        const cookieStore = await cookies();
+        const token = cookieStore.get('access_token')?.value;
+
         if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
             return NextResponse.json({ error: 'userIds array is required' }, { status: 400 });
         }
         if (!token) {
-            return NextResponse.json({ error: 'token is required' }, { status: 400 });
+            return NextResponse.json({ error: 'Authentication token not found in cookies' }, { status: 401 });
         }
         const response = await fetch(process.env.SKYLINK_URL + '/api/v1/shipments?status=PENDING_VERIFICATION&limit=100000&offset=0', {
             headers: {

@@ -48,15 +48,7 @@ export default function CutoffPage() {
             return;
         }
 
-        const token = localStorage.getItem("token"); // Assuming auth token is stored here as per previous context? Or commonly `auth_token` or just use cookies if server actions? 
-        // NOTE: The request sample showed a "token" field in the body. I will try to retrieve it from localStorage as 'csrf_token' based on previous conversation (Conversation 820f4994-4858-40e1-bc78-6565edf49c29: Save CSRF Token).
-        // If that's strictly for CSRF, maybe I need the actual auth token. The sample `token` looks like a JWT. 
-        // I will assume for now it might be in `local_storage`. If not, I'll alert the user.
-
-        if (!token) {
-            setError("Authentication token not found. Please log in again.");
-            return;
-        }
+        // Token is now handled by httpOnly cookie in /api/cutoff
 
         setLoading(true);
         setError(null);
@@ -70,7 +62,6 @@ export default function CutoffPage() {
                 },
                 body: JSON.stringify({
                     userIds: selectedUserIds,
-                    token: token,
                 }),
             });
 
@@ -159,8 +150,8 @@ export default function CutoffPage() {
                                 <tr
                                     key={user.id}
                                     className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer ${selectedUserIds.includes(user.id)
-                                            ? "bg-blue-50/50 dark:bg-blue-900/10"
-                                            : ""
+                                        ? "bg-blue-50/50 dark:bg-blue-900/10"
+                                        : ""
                                         }`}
                                     onClick={() => toggleUser(user.id)}
                                 >
