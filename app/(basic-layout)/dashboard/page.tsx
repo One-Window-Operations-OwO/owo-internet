@@ -1,11 +1,15 @@
-import { cookies } from "next/headers";
+"use client";
+
 import AdminDashboard from "./_components/AdminDashboard";
 import UserDashboard from "./_components/UserDashboard";
+import { useAuth } from "@/components/AuthProvider";
 
-export default async function DashboardPage() {
-  const cookieStore = await cookies();
-  const userRole = cookieStore.get("user_role")?.value;
-  const isAdmin = userRole === "admin";
+export default function DashboardPage() {
+  const { isAdmin, loading } = useAuth();
+
+  if (loading) {
+    return <div className="p-8 text-neutral-500">Loading...</div>;
+  }
 
   if (isAdmin) {
     return <AdminDashboard />;

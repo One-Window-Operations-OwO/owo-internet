@@ -4,18 +4,18 @@ export default function UserDashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-neutral-900">
+        <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
           Dashboard
         </h2>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-neutral-500 dark:text-zinc-400">
           Selamat datang kembali! Apa yang ingin Anda kerjakan hari ini?
         </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Work Card */}
-        <div className="group relative overflow-hidden rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition-all hover:shadow-md hover:border-blue-200">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+        <div className="group relative overflow-hidden rounded-2xl border border-neutral-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm transition-all hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors">
             <svg
               fill="none"
               viewBox="0 0 24 24"
@@ -30,16 +30,16 @@ export default function UserDashboard() {
               />
             </svg>
           </div>
-          <h3 className="mt-4 text-lg font-semibold text-neutral-900">
+          <h3 className="mt-4 text-lg font-semibold text-neutral-900 dark:text-white">
             Mulai Pengerjaan
           </h3>
-          <p className="mt-2 text-sm text-neutral-500">
+          <p className="mt-2 text-sm text-neutral-500 dark:text-zinc-400">
             Akses workspace utama untuk memulai verifikasi dan input data.
           </p>
           <div className="mt-6">
             <Link
               href="/owo"
-              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 w-full"
+              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:hover:bg-blue-500 w-full"
             >
               Start Kerjakan
               <svg
@@ -60,8 +60,8 @@ export default function UserDashboard() {
         </div>
 
         {/* Stats Card Placeholder */}
-        <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-600">
+        <div className="rounded-2xl border border-neutral-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm transition-colors">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400">
             <svg
               fill="none"
               viewBox="0 0 24 24"
@@ -76,11 +76,11 @@ export default function UserDashboard() {
               />
             </svg>
           </div>
-          <h3 className="mt-4 text-lg font-semibold text-neutral-900">
+          <h3 className="mt-4 text-lg font-semibold text-neutral-900 dark:text-white">
             Total Terverifikasi
           </h3>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">--</p>
-          <p className="text-sm text-neutral-500">Data bulan ini</p>
+          <p className="mt-2 text-3xl font-bold text-neutral-900 dark:text-white">--</p>
+          <p className="text-sm text-neutral-500 dark:text-zinc-500">Data bulan ini</p>
         </div>
       </div>
     </div>

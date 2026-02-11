@@ -99,14 +99,14 @@ export default function VerificationPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold tracking-tight text-neutral-900">Verifikasi</h2>
-                <p className="mt-1 text-sm text-neutral-500">Kelola dan tinjau data verifikasi.</p>
+                <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Verifikasi</h2>
+                <p className="mt-1 text-sm text-neutral-500 dark:text-zinc-400">Kelola dan tinjau data verifikasi.</p>
             </div>
 
-            <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+            <div className="rounded-2xl border border-neutral-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden transition-colors duration-300">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-neutral-600">
-                        <thead className="bg-neutral-50 text-neutral-900 font-medium border-b border-neutral-200">
+                    <table className="w-full text-left text-sm text-neutral-600 dark:text-zinc-400">
+                        <thead className="bg-neutral-50 dark:bg-zinc-950 text-neutral-900 dark:text-zinc-200 font-medium border-b border-neutral-200 dark:border-zinc-800">
                             <tr>
                                 <th className="px-6 py-4">No</th>
                                 <th className="px-6 py-4">NPSN</th>
@@ -117,27 +117,27 @@ export default function VerificationPage() {
                                 <th className="px-6 py-4">Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-neutral-100">
+                        <tbody className="divide-y divide-neutral-100 dark:divide-zinc-800">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-8 text-center text-neutral-500">
+                                    <td colSpan={7} className="px-6 py-8 text-center text-neutral-500 dark:text-zinc-500">
                                         Loading data...
                                     </td>
                                 </tr>
                             ) : data.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-8 text-center text-neutral-500">
+                                    <td colSpan={7} className="px-6 py-8 text-center text-neutral-500 dark:text-zinc-500">
                                         Tidak ada data verifikasi ditemukan.
                                     </td>
                                 </tr>
                             ) : (
                                 data.map((item, index) => (
-                                    <tr key={item.id} className="hover:bg-neutral-50 transition-colors">
+                                    <tr key={item.id} className="hover:bg-neutral-50 dark:hover:bg-zinc-800/50 transition-colors">
                                         <td className="px-6 py-4">
                                             {(pagination.page - 1) * pagination.limit + index + 1}
                                         </td>
                                         <td className="px-6 py-4">{item.npsn}</td>
-                                        <td className="px-6 py-4 font-medium text-neutral-900">{item.school_name}</td>
+                                        <td className="px-6 py-4 font-medium text-neutral-900 dark:text-zinc-200">{item.school_name}</td>
                                         <td className="px-6 py-4">
                                             {new Date(item.received_date).toLocaleDateString("id-ID")}
                                         </td>
@@ -155,8 +155,8 @@ export default function VerificationPage() {
 
                 {/* Pagination */}
                 {!loading && data.length > 0 && (
-                    <div className="flex items-center justify-between border-t border-neutral-200 px-6 py-4">
-                        <p className="text-sm text-neutral-500">
+                    <div className="flex items-center justify-between border-t border-neutral-200 dark:border-zinc-800 px-6 py-4">
+                        <p className="text-sm text-neutral-500 dark:text-zinc-500">
                             Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to{" "}
                             <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of{" "}
                             <span className="font-medium">{pagination.total}</span> results
@@ -165,14 +165,14 @@ export default function VerificationPage() {
                             <button
                                 onClick={() => handlePageChange(pagination.page - 1)}
                                 disabled={pagination.page === 1}
-                                className="rounded-lg border border-neutral-200 px-3 py-1 text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="rounded-lg border border-neutral-200 dark:border-zinc-700 px-3 py-1 text-sm font-medium text-neutral-600 dark:text-zinc-400 hover:bg-neutral-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 Previous
                             </button>
                             <button
                                 onClick={() => handlePageChange(pagination.page + 1)}
                                 disabled={pagination.page === pagination.totalPages}
-                                className="rounded-lg border border-neutral-200 px-3 py-1 text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="rounded-lg border border-neutral-200 dark:border-zinc-700 px-3 py-1 text-sm font-medium text-neutral-600 dark:text-zinc-400 hover:bg-neutral-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 Next
                             </button>
