@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) { // Gunakan NextRequest agar lebih mudah
     try {
         const body = await request.json();
         const {
@@ -8,22 +8,15 @@ export async function POST(request: Request) {
             status,
             client_reject_reason,
             evidence_ids,
-            auth_token, // keep for backward compatibility if passed, but prefer cookie
+            auth_token,
             csrf_token
         } = body;
 
+        // 1. Ambil identitas asli client
+        const userAgent = request.headers.get('user-agent') || 'unknown';
+
         // Get token from cookie
-        // Note: In Next.js App Router, cookies() is a function but in route handlers (req: Request), we use req.headers or similar
-        // For NextRequest specifically we can use req.cookies
-        // But here it is defined as (request: Request). We can cast or use new NextResponse(request).cookies? No.
-        // Let's coerce to NextRequest or use standard headers
         const cookieHeaderVal = request.headers.get('cookie') || '';
-
-        // Simple manual parsing or use NextRequest
-        // Let's use NextRequest pattern which is better
-        // BUT we need to change signature if we want specific NextRequest methods easily, 
-        // OR just parse the cookie header manually to be safe with standard Request
-
         let accessToken = auth_token;
         if (!accessToken) {
             const match = cookieHeaderVal.match(/access_token=([^;]+)/);
@@ -33,7 +26,6 @@ export async function POST(request: Request) {
         if (!shipment_id || !status) {
             return NextResponse.json({ error: 'Missing shipment_id or status' }, { status: 400 });
         }
-
         if (!accessToken || !csrf_token) {
             return NextResponse.json({ error: 'Missing authentication tokens (access_token/auth_token, csrf_token)' }, { status: 401 });
         }
@@ -41,10 +33,7 @@ export async function POST(request: Request) {
         const skylinkUrl = process.env.SKYLINK_URL;
         const url = `${skylinkUrl}/api/v1/shipments/${shipment_id}/status`;
 
-        let skylinkBody: any = {
-            status: status
-        };
-
+        let skylinkBody: any = { status };
         if (status === 'REJECTED') {
             skylinkBody = {
                 status: 'REJECTED',
@@ -55,33 +44,29 @@ export async function POST(request: Request) {
 
         const upstreamCookieHeader = `auth_token=${accessToken}; csrf_token=${csrf_token}`;
 
+        // 2. Kirim fetch dengan identitas client yang diteruskan
         const response = await fetch(url, {
             method: 'PATCH',
             headers: {
-                accept: "*/*",
+                "accept": "*/*",
                 "authorization": `Bearer ${accessToken}`,
                 "x-csrf-token": csrf_token,
                 "cookie": upstreamCookieHeader,
                 "content-type": "application/json",
+                // FORWARDING HEADERS:
+                "user-agent": userAgent,
             },
             body: JSON.stringify(skylinkBody)
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('Skylink API Error:', response.status, errorText);
-            return NextResponse.json({ error: `Skylink API Error: ${response.status}`, details: errorText }, { status: response.status });
+            return NextResponse.json({ error: `Skylink Error`, details: errorText }, { status: response.status });
         }
 
-        if (response.status === 204) {
-            return NextResponse.json({ success: true });
-        }
-
-        const data = await response.json();
-        return NextResponse.json({ success: true, data });
+        return NextResponse.json({ success: true });
 
     } catch (error) {
-        console.error('Error proxying request to Skylink:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
