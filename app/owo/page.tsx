@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import dynamic from 'next/dynamic';
 import Sidebar from '../components/Sidebar';
 import StickyInfoBox from '../components/StickyInfoBox';
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import type { ProcessStatus } from '../components/ProcessStatusLight';
 
 // Dynamically import PdfViewer with SSR disabled to avoid DOMMatrix error
@@ -41,6 +42,7 @@ interface ShipmentDetail {
     evidences: {
         data: EvidenceItem[];
     };
+    history: any[];
 }
 
 export interface Cluster {
@@ -113,8 +115,9 @@ export default function OwoPage() {
     const [customReason, setCustomReason] = useState<string>('');
 
     // New State for Sidebar Inputs
-    const [tanggalBapp, setTanggalBapp] = useState<string>('');
+    const [tanggalBapp, setTanggalBapp] = useState<string>(new Date().toISOString().split("T")[0]);
     const [manualSerialNumber, setManualSerialNumber] = useState<string>('');
+    const [history, setHistory] = useState<any[]>([]);
 
     useEffect(() => {
         const fetchClusters = async () => {
@@ -179,30 +182,22 @@ export default function OwoPage() {
 
             // Initialize Tanggal Pengecekan with Received Date
             if (isMounted) {
-                if (currentItem.received_date) {
-                    const date = new Date(currentItem.received_date);
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    setTanggalBapp(`${year}-${month}-${day}`);
-                } else {
-                    setTanggalBapp('');
-                }
-                setManualSerialNumber(currentItem.starlink_id || '');
+                setTanggalBapp(currentItem.received_date ? new Date(currentItem.received_date).toISOString().split('T')[0] : '');
             }
 
             // 1. Load Current Item
             if (prefetchData?.id === currentItem.shipment_id) {
                 if (isMounted) {
                     setCurrentDetail(prefetchData.data);
+                    setHistory(prefetchData.data.history || []);
                     setLoadingDetail(false);
                 }
             } else {
                 if (isMounted) setLoadingDetail(true);
                 try {
-                    const res = await fetch(`/api/fetch-data?id=${currentItem.shipment_id}`, {
+                    const res = await fetch(`/api/fetch-data?id=${currentItem.shipment_id}&cutoff_id=${currentItem.id}`, {
                         headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+                            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
                         }
                     });
 
@@ -210,7 +205,10 @@ export default function OwoPage() {
                         throw new Error(`Failed to fetch details for shipment ${currentItem.shipment_id}`);
                     }
                     const data = await res.json();
-                    if (isMounted) setCurrentDetail(data);
+                    if (isMounted) {
+                        setCurrentDetail(data);
+                        setHistory(data.history || []);
+                    }
                 } catch (err: any) {
                     console.error(err);
                 } finally {
@@ -224,9 +222,10 @@ export default function OwoPage() {
                     await new Promise(resolve => setTimeout(resolve, 500));
                     if (!isMounted) return;
 
-                    const res = await fetch(`/api/fetch-data?id=${nextItem.shipment_id}`, {
+                    const nextCutoffItem = queue[currentIndex + 1];
+                    const res = await fetch(`/api/fetch-data?id=${nextItem.shipment_id}&cutoff_id=${nextCutoffItem.id}`, {
                         headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+                            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
                         }
                     });
 
@@ -247,10 +246,34 @@ export default function OwoPage() {
         return () => { isMounted = false; };
     }, [queue, currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
+
+
+    // Update manualSerialNumber based on selectedRejections['Serial Number BAPP']
+    useEffect(() => {
+        if (queue.length === 0 || currentIndex >= queue.length) return;
+
+        const currentItem = queue[currentIndex];
+        const serialRejection = selectedRejections['Serial Number BAPP'];
+
+        if (serialRejection) {
+            // Check if the specific rejection reason matches
+            if (serialRejection.includes("tidak terlihat jelas") || serialRejection.includes("tidak ada")) {
+                setManualSerialNumber(" - ");
+            } else {
+                // Default to STARLINK ID if some other rejection reason is selected
+                setManualSerialNumber(currentItem.starlink_id || "");
+            }
+        } else {
+            // Reset if no rejection selected for Serial Number BAPP
+            setManualSerialNumber("");
+        }
+    }, [selectedRejections['Serial Number BAPP'], currentIndex, queue]); // specific dependency on the value to avoid loops
+
     const handleNext = () => {
         setSelectedRejections({});
         setCustomReason('');
-        // setManualSerialNumber is handled in useEffect
+        setHistory([]);
+        // manualSerialNumber will be reset by the effect when selectedRejections is cleared
         if (currentIndex < queue.length - 1) {
             setCurrentIndex(prev => prev + 1);
         } else {
@@ -265,9 +288,9 @@ export default function OwoPage() {
         setProcessingError("");
 
         const hasRejections = Object.keys(selectedRejections).length > 0 || !!customReason;
-        const status = hasRejections ? 'REJECTED' : 'APPROVED';
+        const status = hasRejections ? 'REJECTED' : 'VERIFIED';
 
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('access_token');
         const csrfToken = localStorage.getItem('csrf_token');
         const userId = localStorage.getItem('user_id');
 
@@ -446,20 +469,25 @@ export default function OwoPage() {
         }
     }, [currentDetail, selectedImage, selectedPdf]);
 
-    // Keyboard Shortcuts
+    // Keyboard Shortcuts & Mouse Macro
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!selectedImage && !selectedPdf) return;
 
+            // Close on Escape or Space
+            if (e.key.toLowerCase() === 'escape' || e.key === ' ') {
+                e.preventDefault(); // Prevent scrolling on Space
+                closeImageModal();
+                closePdfModal();
+            }
+
             switch (e.key.toLowerCase()) {
-                case 'escape':
-                    closeImageModal();
-                    closePdfModal();
-                    break;
                 case 'a':
+                case 'arrowleft':
                     switchEvidence('prev');
                     break;
                 case 'd':
+                case 'arrowright':
                     switchEvidence('next');
                     break;
                 case 'q':
@@ -473,8 +501,27 @@ export default function OwoPage() {
             }
         };
 
+        const handleMouse = (e: MouseEvent) => {
+            if (!selectedImage && !selectedPdf) return;
+
+            // Mouse 3 (Back) -> Prev
+            if (e.button === 3) {
+                e.preventDefault();
+                switchEvidence('prev');
+            }
+            // Mouse 4 (Forward) -> Next
+            else if (e.button === 4) {
+                e.preventDefault();
+                switchEvidence('next');
+            }
+        };
+
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        window.addEventListener('mousedown', handleMouse);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('mousedown', handleMouse);
+        };
     }, [selectedImage, selectedPdf, switchEvidence]);
 
     // Mouse Wheel Handler
@@ -583,6 +630,17 @@ export default function OwoPage() {
                     setTanggalBapp={setTanggalBapp}
                     manualSerialNumber={manualSerialNumber}
                     setManualSerialNumber={setManualSerialNumber}
+                    currentCategory={(() => {
+                        const currentUrl = selectedImage || selectedPdf;
+                        if (!currentDetail?.evidences?.data?.length || !currentUrl) return undefined;
+
+                        const currentEvidence = currentDetail.evidences.data.find(e => {
+                            const proxyUrl = `/api/proxy-file?path=${e.file_path}`;
+                            // Match either the proxy URL or the direct path if url includes it (encoding safe)
+                            return proxyUrl === currentUrl || currentUrl.includes(encodeURIComponent(e.file_path)) || currentUrl.includes(e.file_path);
+                        });
+                        return currentEvidence?.category;
+                    })()}
                 />
             </div>
 
@@ -621,6 +679,70 @@ export default function OwoPage() {
                                     <InfoItem label="Starlink ID" value={currentItem.starlink_id} />
                                 </div>
                             </div>
+
+                            {/* Riwayat Approval Card */}
+                            {history.length > 0 && (
+                                <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
+                                    <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 border-b dark:border-zinc-700 pb-2 flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                                        Riwayat Approval
+                                        <span className="text-xs font-normal text-zinc-500 ml-auto">{history.length} log{history.length > 1 ? 's' : ''}</span>
+                                    </h2>
+                                    <div className="space-y-3">
+                                        {history.map((log: any, idx: number) => {
+                                            const isVerified = log.status?.toUpperCase() === 'VERIFIED';
+                                            const rejections = log.rejections && typeof log.rejections === 'object' && Object.keys(log.rejections).length > 0
+                                                ? Object.entries(log.rejections).map(([k, v]) => `${k}: ${v}`)
+                                                : null;
+
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className={`rounded-lg p-3 border ${isVerified
+                                                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50'
+                                                        : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50'
+                                                        }`}
+                                                >
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                                                                {log.username || '-'}
+                                                            </span>
+                                                            <span className="text-xs text-zinc-500 dark:text-zinc-400 ml-2">
+                                                                {log.created_at ? new Date(log.created_at).toLocaleString('id-ID', {
+                                                                    day: '2-digit', month: 'short', year: 'numeric',
+                                                                    hour: '2-digit', minute: '2-digit'
+                                                                }) : '-'}
+                                                            </span>
+                                                        </div>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${isVerified
+                                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'
+                                                            : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
+                                                            }`}>
+                                                            {log.status}
+                                                        </span>
+                                                    </div>
+                                                    {rejections && (
+                                                        <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+                                                            {rejections.map((r: string, i: number) => (
+                                                                <div key={i} className="flex items-start gap-1.5">
+                                                                    <span className="text-red-400 mt-0.5">•</span>
+                                                                    <span>{r}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {log.serial_number && (
+                                                        <div className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-500 font-mono">
+                                                            SN: {log.serial_number}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Evidence Gallery Card */}
                             <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
@@ -784,7 +906,56 @@ export default function OwoPage() {
 
 
                         {/* Content Area */}
-                        <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-neutral-950">
+
+                        {/* New Overlay UI Implementation */}
+                        <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-black/50">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    switchEvidence('prev');
+                                }}
+                                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white text-6xl transition-colors p-4 z-[60]"
+                            >
+                                ‹
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    switchEvidence('next');
+                                }}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white text-6xl transition-colors p-4 z-[60]"
+                            >
+                                ›
+                            </button>
+
+                            {/* Toolbar for Image */}
+                            {selectedImage && (
+                                <div
+                                    className="absolute top-4 right-4 z-[60] flex gap-2"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <button
+                                        onClick={() => handleRotateLeft()}
+                                        className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full font-bold transition-colors"
+                                    >
+                                        ↺
+                                    </button>
+                                    <button
+                                        onClick={() => handleRotateRight()}
+                                        className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full font-bold transition-colors"
+                                    >
+                                        ↻
+                                    </button>
+                                    <button
+                                        onClick={() => closeImageModal()}
+                                        className="bg-red-500/80 hover:bg-red-600 text-white px-4 py-2 rounded-full font-bold transition-colors"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            )}
+
+
                             {selectedPdf ? (
                                 <div className="w-full h-full p-4 overflow-auto flex justify-center custom-scrollbar">
                                     <PdfViewer
@@ -798,25 +969,30 @@ export default function OwoPage() {
                                     />
                                 </div>
                             ) : (
-                                <div
-                                    className="w-full h-full overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing p-8"
-                                    onMouseDown={handleMouseDown}
-                                    onMouseMove={handleMouseMove}
-                                    onMouseUp={handleMouseUp}
-                                    onMouseLeave={handleMouseUp}
-                                >
-                                    <img
-                                        ref={imageRef}
-                                        src={selectedImage!}
-                                        alt="Preview"
-                                        className="max-w-none transition-transform duration-200 ease-out shadow-2xl"
-                                        draggable={false}
-                                        style={{
-                                            transform: `scale(${zoom}) rotate(${rotation}deg) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
-                                            maxHeight: '100%',
-                                            maxWidth: '100%'
-                                        }}
-                                    />
+                                <div className="flex-1 flex items-center justify-center p-4 overflow-hidden w-full h-full">
+                                    <TransformWrapper
+                                        key={selectedImage + "-" + rotation}
+                                        initialScale={1}
+                                        centerOnInit
+                                        wheel={{ step: 0.1 }}
+                                    >
+                                        <TransformComponent
+                                            wrapperClass="!w-full !h-full"
+                                            contentClass="!w-full !h-full flex items-center justify-center"
+                                        >
+                                            <img
+                                                src={selectedImage!}
+                                                alt="Preview"
+                                                style={{
+                                                    transform: `rotate(${rotation}deg)`,
+                                                    maxWidth: "85vw",
+                                                    maxHeight: "85vh",
+                                                    objectFit: "contain",
+                                                }}
+                                                className="rounded shadow-2xl transition-transform duration-200"
+                                            />
+                                        </TransformComponent>
+                                    </TransformWrapper>
                                 </div>
                             )}
                         </div>
@@ -886,8 +1062,12 @@ export default function OwoPage() {
                         month: 'long',
                         day: 'numeric'
                     })}
+                    verificationDate={tanggalBapp}
+                    setVerificationDate={setTanggalBapp}
+                    history={history}
                 />
             )}
+
         </div>
     );
 }

@@ -55,7 +55,17 @@ interface SidebarProps {
     setTanggalBapp: (val: string) => void;
     manualSerialNumber: string;
     setManualSerialNumber: (val: string) => void;
+    currentCategory?: string;
 }
+
+const CATEGORY_MAIN_CLUSTERS: Record<string, string[]> = {
+    'BAPP': ['BAPP', 'Serial Number BAPP'],
+    'SERIAL_NUMBER': ['Serial Number Kardus'],
+    'CONNECTED_DEVICE': ['Perangkat Terhubung Internet'],
+    'PLANG_SEKOLAH': ['Foto Sekolah', 'Geo Tagging'],
+    'PENERIMA': ['Foto Box dan PIC'],
+    'UNBOXING': ['Kelengkapan Internet Satelit']
+};
 
 export default function Sidebar({
     currentIndex,
@@ -77,9 +87,11 @@ export default function Sidebar({
     setTanggalBapp,
     manualSerialNumber,
     setManualSerialNumber,
+    currentCategory,
 }: SidebarProps) {
     const hasRejections = Object.keys(selectedRejections).length > 0 || !!customReason;
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [filterMode, setFilterMode] = useState<'all' | 'filtered'>('filtered');
 
     // Check if "Serial Number BAPP" is rejected
     const isSerialNumberMismatch = Object.entries(selectedRejections).some(([main, sub]) =>
@@ -92,6 +104,50 @@ export default function Sidebar({
         acc[cluster.main_cluster].push(cluster);
         return acc;
     }, {} as Record<string, Cluster[]>);
+
+    // Filter clusters based on mode and category
+    const filteredGrouped = Object.entries(grouped).reduce((acc, [mainCluster, items]) => {
+        if (filterMode === 'all') {
+            acc[mainCluster] = items;
+        } else {
+            // Filtered mode
+            const allowedClusters = currentCategory ? CATEGORY_MAIN_CLUSTERS[currentCategory] : undefined;
+            if (allowedClusters) {
+                if (allowedClusters.includes(mainCluster)) {
+                    acc[mainCluster] = items;
+                }
+            } else {
+                // If no category or unknown category, show everything (or maybe handling default behavior)
+                // For now, if no match found in map, let's show all to be safe, or strictly nothing?
+                // Requirement says "ketika filtered tambahkan ketentuan...".
+                // If category is not in the map, and we are in filtered mode, maybe we should default to ALL?
+                // Let's default to ALL if category is not recognized in the map.
+                acc[mainCluster] = items;
+            }
+        }
+        return acc;
+    }, {} as Record<string, Cluster[]>);
+
+    // Safety check: if filtered result is empty but we have clusters, maybe show all? 
+    // actually if specific category is selected but yields no clusters (unlikely given the map), it will be empty.
+    // However, if currentCategory is defined AND present in map, we use strict filtering.
+    // Let's refine the reduce above.
+
+    const finalGrouped = (() => {
+        if (filterMode === 'all') return grouped;
+        if (!currentCategory || !CATEGORY_MAIN_CLUSTERS[currentCategory]) return grouped;
+
+        const allowed = CATEGORY_MAIN_CLUSTERS[currentCategory];
+        const filtered: Record<string, Cluster[]> = {};
+
+        Object.entries(grouped).forEach(([key, val]) => {
+            if (allowed.includes(key)) {
+                filtered[key] = val;
+            }
+        });
+        return filtered;
+    })();
+
 
     const handleSelect = (mainCluster: string, subCluster: string) => {
         const newRejections = { ...selectedRejections, [mainCluster]: subCluster };
@@ -151,6 +207,28 @@ export default function Sidebar({
                 </div>
             )}
 
+            {/* Filter Toggle */}
+            <div className="flex bg-gray-700 p-0.5 rounded-lg mb-4 flex-shrink-0">
+                <button
+                    onClick={() => setFilterMode('filtered')}
+                    className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${filterMode === 'filtered'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-400 hover:text-white hover:bg-gray-600'
+                        }`}
+                >
+                    Filtered
+                </button>
+                <button
+                    onClick={() => setFilterMode('all')}
+                    className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${filterMode === 'all'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-400 hover:text-white hover:bg-gray-600'
+                        }`}
+                >
+                    All
+                </button>
+            </div>
+
 
             {/* Clusters / Rejection Options (Scrollable) */}
             <div className="flex-grow overflow-y-auto custom-scrollbar">
@@ -160,7 +238,7 @@ export default function Sidebar({
                     </div>
                 ) : (
                     <div className="flex flex-col gap-2">
-                        {Object.entries(grouped).map(([mainCluster, items]) => (
+                        {Object.entries(finalGrouped).map(([mainCluster, items]) => (
                             <div key={mainCluster} className="text-left text-xs">
                                 <label className="font-semibold text-gray-300 block mb-1">
                                     {mainCluster}
@@ -191,6 +269,11 @@ export default function Sidebar({
                                 </div>
                             </div>
                         ))}
+                        {Object.keys(finalGrouped).length === 0 && filterMode === 'filtered' && (
+                            <div className="text-gray-500 text-xs text-center py-4 italic">
+                                No specific clusters for this category. Switch to 'All' to see available options.
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
