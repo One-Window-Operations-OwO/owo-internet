@@ -11,6 +11,30 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        // Check if using local fallback token
+        if (token.startsWith("local_token_")) {
+            const base64Email = token.replace("local_token_", "");
+            try {
+                const email = Buffer.from(base64Email, 'base64').toString('utf-8');
+                const { getUserByEmail } = await import("@/lib/db/users");
+                const localUser = await getUserByEmail(email);
+
+                if (localUser) {
+                     return NextResponse.json({
+                        id: localUser.id,
+                        name: localUser.name,
+                        email: localUser.email,
+                        local_user_id: localUser.id,
+                        local_role: localUser.role
+                    });
+                } else {
+                    return NextResponse.json({ message: "Local user not found" }, { status: 401 });
+                }
+            } catch (e) {
+                 return NextResponse.json({ message: "Invalid local token format" }, { status: 401 });
+            }
+        }
+
         const skylinkUrl = process.env.SKYLINK_URL;
         if (!skylinkUrl) {
             return NextResponse.json({ message: "Server configuration error" }, { status: 500 });

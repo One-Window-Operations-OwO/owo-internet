@@ -66,6 +66,10 @@ export async function seedUsers() {
     }
 }
 
+export function verifyLocalCredentials(username: string, password: string) {
+    return userList.find(u => u.username === username && u.password === password);
+}
+
 export async function createUserIfNotExists(email: string, name: string) {
     // Check if user exists first to get their role
     const getUserIdQuery = `SELECT id, name, role FROM users WHERE email = ?`;
