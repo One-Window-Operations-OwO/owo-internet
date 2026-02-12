@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import dynamic from 'next/dynamic';
 import Sidebar from '../components/Sidebar';
 import StickyInfoBox from '../components/StickyInfoBox';
@@ -43,6 +43,7 @@ interface ShipmentDetail {
         data: EvidenceItem[];
     };
     history: any[];
+    is_duplicate_sn?: boolean;
 }
 
 export interface Cluster {
@@ -120,6 +121,29 @@ export default function OwoPage() {
     const [manualSerialNumber, setManualSerialNumber] = useState<string>('');
     const [history, setHistory] = useState<any[]>([]);
 
+    const sortedEvidences = useMemo(() => {
+        if (!currentDetail?.evidences?.data) return [];
+
+        const priority = [
+            'PLANG_SEKOLAH',
+            'PENERIMA',
+            'UNBOXING',
+            'SERIAL_NUMBER',
+            'BAPP',
+            'CONNECTED_DEVICE'
+        ];
+
+        return [...currentDetail.evidences.data].sort((a, b) => {
+            const indexA = priority.indexOf(a.category);
+            const indexB = priority.indexOf(b.category);
+
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return 0;
+        });
+    }, [currentDetail]);
+
     useEffect(() => {
         const fetchClusters = async () => {
             try {
@@ -183,7 +207,31 @@ export default function OwoPage() {
 
             // Initialize Tanggal Pengecekan with Received Date
             if (isMounted) {
-                setTanggalBapp(currentItem.received_date ? new Date(currentItem.received_date).toISOString().split('T')[0] : '');
+                if (currentItem.received_date) {
+                    const d = new Date(currentItem.received_date);
+                    const year = d.getFullYear();
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    setTanggalBapp(`${year}-${month}-${day}`);
+                } else {
+                    setTanggalBapp('');
+                }
+            }
+
+
+            // Check SN Logic
+            if (currentItem.starlink_id) {
+                const sn = currentItem.starlink_id;
+
+                // 1. Check Length (Must be 15)
+                if (sn.length !== 15) {
+                    const reason = '(3E) SN tidak valid (jumlah karakter tidak sesuai)';
+                    setSelectedRejections(prev => {
+                        const next = { ...prev, 'Serial Number BAPP': reason };
+                        setCustomReason(Object.values(next).join('; '));
+                        return next;
+                    });
+                }
             }
 
             // 1. Load Current Item
@@ -192,6 +240,16 @@ export default function OwoPage() {
                     setCurrentDetail(prefetchData.data);
                     setHistory(prefetchData.data.history || []);
                     setLoadingDetail(false);
+
+                    // Check duplicate from prefetched data
+                    if (prefetchData.data.is_duplicate_sn && currentItem.starlink_id?.length === 15) {
+                        const reason = '(3D) SN Duplikat';
+                        setSelectedRejections(prev => {
+                            const next = { ...prev, 'Serial Number BAPP': reason };
+                            setCustomReason(Object.values(next).join('; '));
+                            return next;
+                        });
+                    }
                 }
             } else {
                 if (isMounted) setLoadingDetail(true);
@@ -209,6 +267,16 @@ export default function OwoPage() {
                     if (isMounted) {
                         setCurrentDetail(data);
                         setHistory(data.history || []);
+
+                        // Check duplicate from fetched data
+                        if (data.is_duplicate_sn && currentItem.starlink_id?.length === 15) {
+                            const reason = '(3D) SN Duplikat';
+                            setSelectedRejections(prev => {
+                                const next = { ...prev, 'Serial Number BAPP': reason };
+                                setCustomReason(Object.values(next).join('; '));
+                                return next;
+                            });
+                        }
                     }
                 } catch (err: any) {
                     console.error(err);
@@ -422,29 +490,29 @@ export default function OwoPage() {
 
     useEffect(() => {
         if (isModalOpenRef.current && currentDetail) {
-             const firstEvidence = currentDetail.evidences?.data?.[0];
-             if (firstEvidence) {
-                  const nextUrl = `/api/proxy-file?path=${firstEvidence.file_path}`;
-                  const isNextPdf = firstEvidence.file_path.toLowerCase().endsWith('.pdf');
+            const firstEvidence = sortedEvidences[0];
+            if (firstEvidence) {
+                const nextUrl = `/api/proxy-file?path=${firstEvidence.file_path}`;
+                const isNextPdf = firstEvidence.file_path.toLowerCase().endsWith('.pdf');
 
-                  if (isNextPdf) {
-                      setSelectedImage(null);
-                      setSelectedPdf(nextUrl);
-                      setPdfPageNumber(1);
-                      setPdfZoom(1);
-                      setPdfRotation(0);
-                      setPdfNumPages(null);
-                  } else {
-                      setSelectedPdf(null);
-                      setSelectedImage(nextUrl);
-                      setZoom(1);
-                      setRotation(0);
-                      setPosition({ x: 0, y: 0 });
-                  }
-             } else {
-                 setSelectedImage(null);
-                 setSelectedPdf(null);
-             }
+                if (isNextPdf) {
+                    setSelectedImage(null);
+                    setSelectedPdf(nextUrl);
+                    setPdfPageNumber(1);
+                    setPdfZoom(1);
+                    setPdfRotation(0);
+                    setPdfNumPages(null);
+                } else {
+                    setSelectedPdf(null);
+                    setSelectedImage(nextUrl);
+                    setZoom(1);
+                    setRotation(0);
+                    setPosition({ x: 0, y: 0 });
+                }
+            } else {
+                setSelectedImage(null);
+                setSelectedPdf(null);
+            }
         }
     }, [currentDetail]);
 
@@ -471,9 +539,9 @@ export default function OwoPage() {
 
     // Navigation Helper
     const switchEvidence = useCallback((direction: 'next' | 'prev') => {
-        if (!currentDetail?.evidences?.data?.length) return;
+        if (!sortedEvidences.length) return;
 
-        const evidences = currentDetail.evidences.data;
+        const evidences = sortedEvidences;
         const currentUrl = selectedImage || selectedPdf;
         const currentIdx = evidences.findIndex(e => {
             const proxyUrl = `/api/proxy-file?path=${e.file_path}`;
@@ -791,9 +859,9 @@ export default function OwoPage() {
                                     )}
                                 </div>
 
-                                {currentDetail.evidences?.data && Array.isArray(currentDetail.evidences.data) && currentDetail.evidences.data.length > 0 ? (
+                                {sortedEvidences.length > 0 ? (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                        {currentDetail.evidences.data.map((ev, idx) => {
+                                        {sortedEvidences.map((ev, idx) => {
                                             const fileUrl = `/api/proxy-file?path=${ev.file_path}`;
                                             const isPdf = ev.file_path.toLowerCase().endsWith('.pdf');
                                             const fileName = ev.file_path.split('/').pop() || 'Unknown File';
@@ -807,12 +875,9 @@ export default function OwoPage() {
                                                     <div className="aspect-square w-full overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900">
                                                         {isPdf ? (
                                                             <div className="h-full w-full flex flex-col items-center justify-center bg-zinc-200 dark:bg-zinc-800 p-2">
-                                                                <PdfViewer
-                                                                    file={fileUrl}
-                                                                    pageNumber={1}
-                                                                    width={150}
-                                                                    className="shadow-lg max-h-full"
-                                                                />
+                                                                <div className="bg-white p-1 shadow-md w-full h-full flex items-center justify-center overflow-hidden">
+                                                                    <span className="text-xs font-bold text-zinc-500">PDF</span>
+                                                                </div>
                                                             </div>
                                                         ) : (
                                                             <img
@@ -823,15 +888,17 @@ export default function OwoPage() {
                                                             />
                                                         )}
                                                     </div>
-                                                    <p className="mt-2 text-xs font-medium text-center text-zinc-600 dark:text-zinc-400 truncate">
-                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1 ${ev.category === 'BAPP' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
-                                                            ev.category === 'FOTO_PERANGKAT' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
-                                                                'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400'
+                                                    <div className="mt-2 text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mb-1 ${ev.category === 'BAPP' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
+                                                            ev.category === 'PLANG_SEKOLAH' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' :
+                                                                ev.category === 'PENERIMA' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                                                                    ev.category === 'SERIAL_NUMBER' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                                        'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400'
                                                             }`}>
                                                             {ev.category || 'File'}
                                                         </span>
-                                                        {fileName}
-                                                    </p>
+                                                        <div className="truncate w-full px-1">{fileName}</div>
+                                                    </div>
                                                 </div>
                                             );
                                         })}
@@ -1034,7 +1101,7 @@ export default function OwoPage() {
                         <div className="flex-none h-32 bg-neutral-900 border-t border-neutral-800 p-4 relative z-20">
                             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-b from-black/20 to-transparent"></div>
                             <div className="flex gap-3 h-full items-center p-1 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-neutral-800 pb-2">
-                                {currentDetail?.evidences?.data?.map((ev, idx) => {
+                                {sortedEvidences.map((ev, idx) => {
                                     const fileUrl = `/api/proxy-file?path=${ev.file_path}`;
                                     const isPdf = ev.file_path.toLowerCase().endsWith('.pdf');
                                     const isSelected = selectedImage === fileUrl || selectedPdf === fileUrl;

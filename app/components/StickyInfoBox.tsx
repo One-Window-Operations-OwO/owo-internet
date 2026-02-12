@@ -140,7 +140,7 @@ export default function StickyInfoBox({
                         <hr className="border-zinc-700" />
                         <div>
                             <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
-                                Tanggal Verifikasi
+                                Tanggal BAPP
                             </label>
                             <input
                                 type="date"

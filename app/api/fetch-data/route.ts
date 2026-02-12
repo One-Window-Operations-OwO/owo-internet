@@ -126,10 +126,34 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Check for duplicate SN
+    let is_duplicate_sn = false;
+    const sn = shipmentData.starlink_id; // Assuming starlink_id is in shipmentData root or shipmentData.data. Need to be safe. checking previous file view...
+    // Previous file view of checks-sn-duplicate used searchParams.
+    // fetch-data gets shipmentData from skylink.
+    // I will assume it's at the top level of shipmentData based on usage in page.tsx (currentDetail.shipment.starlink_id?)
+    // In page.tsx: currentDetail has shipment property.
+    // In fetch-data: returns { shipment: shipmentData ... }
+    // So shipmentData IS the shipment object.
+
+    if (sn) {
+      const conn = await pool.getConnection();
+      try {
+        const [rows]: any = await conn.query(
+          "SELECT id FROM logs WHERE serial_number = ? AND status = 'VERIFIED' LIMIT 1",
+          [sn]
+        );
+        is_duplicate_sn = rows.length > 0;
+      } finally {
+        conn.release();
+      }
+    }
+
     return NextResponse.json({
       shipment: shipmentData,
       evidences: evidencesData,
       history,
+      is_duplicate_sn
     });
   } catch (error) {
     console.error("Error fetching data:", error);

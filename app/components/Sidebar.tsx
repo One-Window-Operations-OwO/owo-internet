@@ -181,7 +181,7 @@ export default function Sidebar({
             {/* Tanggal Pengecekan Input */}
             <div className="mb-4 flex-shrink-0">
                 <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
-                    Tanggal Pengecekan
+                    Tanggal BAPP
                 </label>
                 <input
                     type="date"
