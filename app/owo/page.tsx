@@ -77,6 +77,7 @@ export default function OwoPage() {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const imageRef = useRef<HTMLImageElement>(null);
+    const isModalOpenRef = useRef(false);
 
     const handleMouseDown = (e: React.MouseEvent) => {
         if (zoom > 1) {
@@ -414,6 +415,38 @@ export default function OwoPage() {
     const closePdfModal = () => {
         setSelectedPdf(null);
     };
+
+    useEffect(() => {
+        isModalOpenRef.current = !!(selectedImage || selectedPdf);
+    }, [selectedImage, selectedPdf]);
+
+    useEffect(() => {
+        if (isModalOpenRef.current && currentDetail) {
+             const firstEvidence = currentDetail.evidences?.data?.[0];
+             if (firstEvidence) {
+                  const nextUrl = `/api/proxy-file?path=${firstEvidence.file_path}`;
+                  const isNextPdf = firstEvidence.file_path.toLowerCase().endsWith('.pdf');
+
+                  if (isNextPdf) {
+                      setSelectedImage(null);
+                      setSelectedPdf(nextUrl);
+                      setPdfPageNumber(1);
+                      setPdfZoom(1);
+                      setPdfRotation(0);
+                      setPdfNumPages(null);
+                  } else {
+                      setSelectedPdf(null);
+                      setSelectedImage(nextUrl);
+                      setZoom(1);
+                      setRotation(0);
+                      setPosition({ x: 0, y: 0 });
+                  }
+             } else {
+                 setSelectedImage(null);
+                 setSelectedPdf(null);
+             }
+        }
+    }, [currentDetail]);
 
     function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
         setPdfNumPages(numPages);
