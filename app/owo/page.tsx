@@ -462,7 +462,9 @@ export default function OwoPage() {
 
         if (serialRejection) {
             // Check if the specific rejection reason matches
-            if (serialRejection.includes("tidak terlihat jelas") || serialRejection.includes("tidak ada")) {
+            // (7A) SN pada BAPP tidak jelas -> set to " - "
+            // (7C) SN pada BAPP tidak ada -> set to " - "
+            if (serialRejection.includes("tidak jelas") || serialRejection.includes("tidak ada")) {
                 setManualSerialNumber(" - ");
             } else {
                 // Default to STARLINK ID if some other rejection reason is selected
