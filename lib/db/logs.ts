@@ -30,6 +30,7 @@ export async function createLogsTable() {
             bapp INT NULL,
             skylink_web INT NULL,
             npsn_bapp INT NULL,
+            denda INT NULL,
             user_id INT NOT NULL,
             status ENUM('REJECTED', 'VERIFIED') NOT NULL,
             tanggal_bapp DATE NULL,
@@ -48,6 +49,26 @@ export async function createLogsTable() {
             FOREIGN KEY (npsn_bapp) REFERENCES cluster(id) ON DELETE SET NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
+    `;
+    const dropTriggerQuery = `DROP TRIGGER IF EXISTS trg_hitung_denda_insert;`;
+
+    const createTriggerQuery = `
+        CREATE TRIGGER trg_hitung_denda_insert
+        BEFORE INSERT ON logs
+        FOR EACH ROW
+        BEGIN
+            DECLARE selisih_hari INT;
+            
+            IF NEW.status = 'VERIFIED' AND NEW.tanggal_bapp IS NOT NULL THEN
+                SET selisih_hari = DATEDIFF(NEW.tanggal_bapp, '2026-01-24');
+                
+                IF selisih_hari > 0 THEN
+                    SET NEW.denda = ROUND((1 / 1000) * selisih_hari * 9212);
+                ELSE
+                    SET NEW.denda = 0;
+                END IF;
+            END IF;
+        END;
     `;
     const conn = await pool.getConnection();
     try {
@@ -70,6 +91,8 @@ export async function createLogsTable() {
         if (caCols.length === 0) {
             await conn.query("ALTER TABLE logs ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP");
         }
+        await conn.query(dropTriggerQuery);
+        await conn.query(createTriggerQuery);
     } finally {
         conn.release();
     }
