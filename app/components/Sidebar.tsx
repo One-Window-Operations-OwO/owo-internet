@@ -324,7 +324,7 @@ export default function Sidebar({
                     <div className="flex items-center gap-2 select-none">
                         <span className="text-xs text-gray-400">Sisa :</span>
                         <span className="text-sm font-bold text-white min-w-[30px]">
-                            {showRemaining ? totalItems : "•••"}
+                            {showRemaining ? Math.max(0, totalItems - currentIndex) : "•••"}
                         </span>
                         <button
                             onClick={() => setShowRemaining(!showRemaining)}

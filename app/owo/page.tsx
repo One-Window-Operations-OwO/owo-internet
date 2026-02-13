@@ -114,6 +114,9 @@ export default function OwoPage() {
     const [pdfZoom, setPdfZoom] = useState(1);
     const [pdfRotation, setPdfRotation] = useState(0);
 
+    // Layout State
+    const [showThumbnails, setShowThumbnails] = useState(true);
+
     // Rejection State
     const [clusters, setClusters] = useState<Cluster[]>([]);
     const [selectedRejections, setSelectedRejections] = useState<Record<string, string>>({});
@@ -428,6 +431,10 @@ export default function OwoPage() {
             const currentRejection = selectedRejections[mainCluster];
             // Priority: If "Nomor BAPP Tidak Ada" is already active, do not overwrite it.
             if (currentRejection && currentRejection.includes("Nomor BAPP Tidak Ada")) {
+                return;
+            }
+
+            if (currentRejection === reason) {
                 return;
             }
 
@@ -1251,8 +1258,8 @@ export default function OwoPage() {
                                                 alt="Preview"
                                                 style={{
                                                     transform: `rotate(${rotation}deg)`,
-                                                    maxWidth: "85vw",
-                                                    maxHeight: "85vh",
+                                                    maxWidth: "100%",
+                                                    maxHeight: "100%",
                                                     objectFit: "contain",
                                                 }}
                                                 className="rounded shadow-2xl transition-transform duration-200"
@@ -1264,9 +1271,27 @@ export default function OwoPage() {
                         </div>
 
                         {/* Thumbnail Strip Footer */}
-                        <div className="flex-none h-32 bg-neutral-900 border-t border-neutral-800 p-4 relative z-20">
-                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-b from-black/20 to-transparent"></div>
-                            <div className="flex gap-3 h-full items-center p-1 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-neutral-800 pb-2">
+                        <div className={`flex-none relative bg-neutral-900 border-t border-neutral-800 transition-all duration-300 ease-in-out ${showThumbnails ? 'h-24' : 'h-0'}`}>
+                            {/* Toggle Tab Button */}
+                            <button
+                                onClick={() => setShowThumbnails(!showThumbnails)}
+                                className="absolute -top-6 left-1/2 -translate-x-1/2 bg-neutral-900 border border-neutral-800 border-b-0 rounded-t-lg px-6 py-1 text-[10px] font-medium text-neutral-400 hover:text-white transition-colors z-[70] flex items-center gap-1 shadow-sm"
+                                title={showThumbnails ? "Hide Thumbnails" : "Show Thumbnails"}
+                            >
+                                {showThumbnails ? (
+                                    <>
+                                        <span>Hide</span>
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>Show Thumbs</span>
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                                    </>
+                                )}
+                            </button>
+
+                            <div className={`flex gap-2 h-full items-center justify-center w-full overflow-x-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-neutral-900 px-4 py-2 ${showThumbnails ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                                 {sortedEvidences.map((ev, idx) => {
                                     const fileUrl = `/api/proxy-file?path=${ev.file_path}`;
                                     const isPdf = ev.file_path.toLowerCase().endsWith('.pdf');
@@ -1275,22 +1300,23 @@ export default function OwoPage() {
                                     return (
                                         <button
                                             key={idx}
-                                            onClick={() => {
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // Prevent closing
                                                 if (isPdf) {
                                                     openPdfModal(fileUrl);
                                                 } else {
                                                     openImageModal(fileUrl);
                                                 }
                                             }}
-                                            className={`relative group h-20 w-20 flex-shrink-0 rounded-lg overflow-hidden border transition-all duration-200 ${isSelected
-                                                ? 'border-blue-500 ring-2 ring-blue-500/30 scale-100'
+                                            className={`relative group h-14 w-14 flex-shrink-0 rounded-md overflow-hidden border transition-all duration-200 ${isSelected
+                                                ? 'border-blue-500 ring-2 ring-blue-500/30 scale-105 z-10'
                                                 : 'border-neutral-700 opacity-60 hover:opacity-100 hover:border-neutral-500 hover:scale-105'
                                                 }`}
                                         >
                                             {isPdf ? (
-                                                <div className="w-full h-full bg-neutral-800 flex flex-col items-center justify-center p-1">
-                                                    <svg className="w-6 h-6 text-red-500 mb-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
-                                                    <span className="text-[9px] text-neutral-400 truncate w-full text-center">PDF</span>
+                                                <div className="w-full h-full bg-neutral-800 flex flex-col items-center justify-center p-0.5">
+                                                    <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                                                    <span className="text-[8px] text-neutral-400 font-mono mt-0.5">PDF</span>
                                                 </div>
                                             ) : (
                                                 <img
@@ -1300,11 +1326,6 @@ export default function OwoPage() {
                                                     loading="lazy"
                                                 />
                                             )}
-                                            <div className="absolute bottom-0 inset-x-0 bg-black/80 py-0.5 px-0.5 truncate">
-                                                <span className="text-[8px] text-white font-medium block text-center truncate">
-                                                    {ev.category?.replace('_', ' ') || 'File'}
-                                                </span>
-                                            </div>
                                         </button>
                                     );
                                 })}
@@ -1315,26 +1336,28 @@ export default function OwoPage() {
             </div>
 
             {/* StickyInfoBox - Floating info when viewer is open */}
-            {(selectedImage || selectedPdf) && currentItem && (
-                <StickyInfoBox
-                    schoolName={currentItem.school_name}
-                    npsn={currentItem.npsn}
-                    starlinkId={currentItem.starlink_id}
-                    resiNumber={currentItem.resi_number}
-                    shipmentStatus={currentDetail?.shipment?.status || 'Unknown'}
-                    receivedDate={new Date(currentItem.received_date).toLocaleDateString('id-ID', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                    })}
-                    tangalBapp={tanggalBapp}
-                    setTanggalBapp={setTanggalBapp}
-                    history={history}
-                />
-            )}
+            {
+                (selectedImage || selectedPdf) && currentItem && (
+                    <StickyInfoBox
+                        schoolName={currentItem.school_name}
+                        npsn={currentItem.npsn}
+                        starlinkId={currentItem.starlink_id}
+                        resiNumber={currentItem.resi_number}
+                        shipmentStatus={currentDetail?.shipment?.status || 'Unknown'}
+                        receivedDate={new Date(currentItem.received_date).toLocaleDateString('id-ID', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        })}
+                        tangalBapp={tanggalBapp}
+                        setTanggalBapp={setTanggalBapp}
+                        history={history}
+                    />
+                )
+            }
 
-        </div>
+        </div >
     );
 }
 
