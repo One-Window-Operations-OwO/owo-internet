@@ -120,6 +120,7 @@ export default function OwoPage() {
     const [tanggalBapp, setTanggalBapp] = useState<string>(new Date().toISOString().split("T")[0]);
     const [manualSerialNumber, setManualSerialNumber] = useState<string>('');
     const [history, setHistory] = useState<any[]>([]);
+    const [lockedClusters, setLockedClusters] = useState<string[]>([]);
 
     const sortedEvidences = useMemo(() => {
         if (!currentDetail?.evidences?.data) return [];
@@ -226,9 +227,22 @@ export default function OwoPage() {
                 // 1. Check Length (Must be 15)
                 if (sn.length !== 15) {
                     const reason = '(3E) SN tidak valid (jumlah karakter tidak sesuai)';
+                    const kardusCluster = 'Serial Number Kardus';
+                    const bappCluster = 'Serial Number BAPP';
+
+                    setLockedClusters(prev => {
+                        const newLocks = new Set(prev);
+                        newLocks.add(kardusCluster);
+                        return Array.from(newLocks);
+                    });
+
                     setSelectedRejections(prev => {
-                        const next = { ...prev, 'Serial Number BAPP': reason };
-                        setCustomReason(Object.values(next).join('; '));
+                        const next = {
+                            ...prev,
+                            [bappCluster]: reason,
+                            [kardusCluster]: reason
+                        };
+                        setCustomReason(Array.from(new Set(Object.values(next))).join('; '));
                         return next;
                     });
                 }
@@ -244,11 +258,44 @@ export default function OwoPage() {
                     // Check duplicate from prefetched data
                     if (prefetchData.data.is_duplicate_sn && currentItem.starlink_id?.length === 15) {
                         const reason = '(3D) SN Duplikat';
+                        const kardusCluster = 'Serial Number Kardus';
+                        const bappCluster = 'Serial Number BAPP';
+
+                        setLockedClusters(prev => {
+                            const newLocks = new Set(prev);
+                            newLocks.add(kardusCluster);
+                            return Array.from(newLocks);
+                        });
+
                         setSelectedRejections(prev => {
-                            const next = { ...prev, 'Serial Number BAPP': reason };
-                            setCustomReason(Object.values(next).join('; '));
+                            const next = {
+                                ...prev,
+                                [bappCluster]: reason,
+                                [kardusCluster]: reason
+                            };
+                            setCustomReason(Array.from(new Set(Object.values(next))).join('; '));
                             return next;
                         });
+                    }
+
+                    // Check for missing BAPP Number
+                    if (!prefetchData.data.shipment.bapp_number) {
+                        // Find the exact sub_cluster string for "Nomor BAPP Tidak Ada" in "Skylink Web"
+                        const targetOption = clusters.find(c => c.main_cluster === 'Skylink Web' && c.nama_opsi.includes('Nomor BAPP Tidak Ada'));
+                        const reason = targetOption ? targetOption.sub_cluster : '(10A) Nomor BAPP Tidak Ada';
+
+                        // Use "Skylink Web" as main cluster name based on user request/grep
+                        const mainCluster = 'Skylink Web';
+
+                        setLockedClusters(prev => [...prev, mainCluster]);
+                        setSelectedRejections(prev => {
+                            const next = { ...prev, [mainCluster]: reason };
+                            setCustomReason(Array.from(new Set(Object.values(next))).join('; '));
+                            return next;
+                        });
+                    } else {
+                        // Ensure it's unlocked if it has a number (though this runs on new item load which should be fresh)
+                        setLockedClusters(prev => prev.filter(c => c !== 'Skylink Web'));
                     }
                 }
             } else {
@@ -271,11 +318,41 @@ export default function OwoPage() {
                         // Check duplicate from fetched data
                         if (data.is_duplicate_sn && currentItem.starlink_id?.length === 15) {
                             const reason = '(3D) SN Duplikat';
+                            const kardusCluster = 'Serial Number Kardus';
+                            const bappCluster = 'Serial Number BAPP';
+
+                            setLockedClusters(prev => {
+                                const newLocks = new Set(prev);
+                                newLocks.add(kardusCluster);
+                                return Array.from(newLocks);
+                            });
+
                             setSelectedRejections(prev => {
-                                const next = { ...prev, 'Serial Number BAPP': reason };
-                                setCustomReason(Object.values(next).join('; '));
+                                const next = {
+                                    ...prev,
+                                    [bappCluster]: reason,
+                                    [kardusCluster]: reason
+                                };
+                                setCustomReason(Array.from(new Set(Object.values(next))).join('; '));
                                 return next;
                             });
+                        }
+
+                        // Check for missing BAPP Number
+                        if (!data.shipment.bapp_number) {
+                            const targetOption = clusters.find(c => c.main_cluster === 'Skylink Web' && c.nama_opsi.includes('Nomor BAPP Tidak Ada'));
+                            const reason = targetOption ? targetOption.sub_cluster : '(10A) Nomor BAPP Tidak Ada';
+
+                            const mainCluster = 'Skylink Web';
+
+                            setLockedClusters(prev => [...prev, mainCluster]);
+                            setSelectedRejections(prev => {
+                                const next = { ...prev, [mainCluster]: reason };
+                                setCustomReason(Array.from(new Set(Object.values(next))).join('; '));
+                                return next;
+                            });
+                        } else {
+                            setLockedClusters(prev => prev.filter(c => c !== 'Skylink Web'));
                         }
                     }
                 } catch (err: any) {
@@ -313,7 +390,7 @@ export default function OwoPage() {
         loadCurrentAndPrefetchNext();
 
         return () => { isMounted = false; };
-    }, [queue, currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [queue, currentIndex, clusters]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -340,6 +417,7 @@ export default function OwoPage() {
 
     const handleNext = () => {
         setSelectedRejections({});
+        setLockedClusters([]);
         setCustomReason('');
         setHistory([]);
         // manualSerialNumber will be reset by the effect when selectedRejections is cleared
@@ -720,6 +798,7 @@ export default function OwoPage() {
                     customReason={customReason}
                     setCustomReason={setCustomReason}
                     onSubmit={handleSubmit}
+                    isLoading={loadingDetail}
                     onSkip={handleNext}
                     isSubmitting={isSubmitting}
                     processingStatus={processingStatus}
@@ -727,10 +806,9 @@ export default function OwoPage() {
                     onRetry={handleSubmit}
                     position={sidebarPosition}
                     setPosition={setSidebarPosition}
-                    tanggalBapp={tanggalBapp}
-                    setTanggalBapp={setTanggalBapp}
                     manualSerialNumber={manualSerialNumber}
                     setManualSerialNumber={setManualSerialNumber}
+                    lockedClusters={lockedClusters}
                     currentCategory={(() => {
                         const currentUrl = selectedImage || selectedPdf;
                         if (!currentDetail?.evidences?.data?.length || !currentUrl) return undefined;

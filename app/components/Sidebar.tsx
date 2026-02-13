@@ -43,28 +43,25 @@ interface SidebarProps {
     onSubmit: () => void;
     onSkip: () => void;
     isSubmitting?: boolean;
-    // New props
     processingStatus?: ProcessStatus;
     errorMessage?: string;
     onRetry?: () => void;
     position: "left" | "right";
     setPosition: (pos: "left" | "right") => void;
-
-    // New fields
-    tanggalBapp: string;
-    setTanggalBapp: (val: string) => void;
     manualSerialNumber: string;
     setManualSerialNumber: (val: string) => void;
     currentCategory?: string;
+    lockedClusters?: string[];
+    isLoading?: boolean;
 }
 
 const CATEGORY_MAIN_CLUSTERS: Record<string, string[]> = {
     'BAPP': ['BAPP', 'Serial Number BAPP'],
-    'SERIAL_NUMBER': ['Serial Number Kardus'],
-    'CONNECTED_DEVICE': ['Perangkat Terhubung Internet'],
+    'SERIAL_NUMBER': ['Serial Number Kardus', 'Geo Tagging'],
+    'CONNECTED_DEVICE': ['Perangkat Terhubung Internet',],
     'PLANG_SEKOLAH': ['Foto Sekolah', 'Geo Tagging'],
-    'PENERIMA': ['Foto Box dan PIC'],
-    'UNBOXING': ['Kelengkapan Internet Satelit']
+    'PENERIMA': ['Foto Box dan PIC', 'Geo Tagging'],
+    'UNBOXING': ['Kelengkapan Internet Satelit', 'Geo Tagging']
 };
 
 export default function Sidebar({
@@ -83,11 +80,11 @@ export default function Sidebar({
     onRetry,
     position,
     setPosition,
-    tanggalBapp,
-    setTanggalBapp,
     manualSerialNumber,
     setManualSerialNumber,
     currentCategory,
+    lockedClusters = [],
+    isLoading = false,
 }: SidebarProps) {
     const hasRejections = Object.keys(selectedRejections).length > 0 || !!customReason;
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -153,14 +150,14 @@ export default function Sidebar({
     const handleSelect = (mainCluster: string, subCluster: string) => {
         const newRejections = { ...selectedRejections, [mainCluster]: subCluster };
         setSelectedRejections(newRejections);
-        setCustomReason(Object.values(newRejections).join('; '));
+        setCustomReason(Array.from(new Set(Object.values(newRejections))).join('; '));
     };
 
     const handleDeselect = (mainCluster: string) => {
         const newRejections = { ...selectedRejections };
         delete newRejections[mainCluster];
         setSelectedRejections(newRejections);
-        setCustomReason(Object.values(newRejections).join('; '));
+        setCustomReason(Array.from(new Set(Object.values(newRejections))).join('; '));
     };
 
     const mainButtonLabel = hasRejections ? "REJECT" : "VERIFY";
@@ -179,18 +176,7 @@ export default function Sidebar({
                 />
             </div>
 
-            {/* Tanggal Pengecekan Input */}
-            <div className="mb-4 flex-shrink-0">
-                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
-                    Tanggal BAPP
-                </label>
-                <input
-                    type="date"
-                    className="block w-full rounded-md bg-gray-900 border border-gray-600 py-1.5 px-2 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500 text-xs leading-5"
-                    value={tanggalBapp}
-                    onChange={(e) => setTanggalBapp(e.target.value)}
-                />
-            </div>
+
 
             {/* Conditional Serial Number Input */}
             {isSerialNumberMismatch && (
@@ -274,25 +260,32 @@ export default function Sidebar({
                                             {/* Default "Sesuai" button */}
                                             <button
                                                 type="button"
-                                                onClick={() => handleDeselect(mainCluster)}
+                                                onClick={() => !lockedClusters.includes(mainCluster) && handleDeselect(mainCluster)}
                                                 className={`px-3 py-1 text-xs rounded-full border transition-colors mb-1 mr-1
-                                                    ${!selectedRejections[mainCluster]
+                                                        ${!selectedRejections[mainCluster]
                                                         ? "bg-green-600 border-green-600 text-white font-semibold"
                                                         : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
-                                                    }`}
+                                                    } ${lockedClusters.includes(mainCluster) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                disabled={lockedClusters.includes(mainCluster)}
                                             >
                                                 Sesuai
                                             </button>
-                                            {items.map(item => (
-                                                <RadioOption
-                                                    key={item.id}
-                                                    label={item.nama_opsi}
-                                                    checked={selectedRejections[mainCluster] === item.sub_cluster}
-                                                    onClick={() => handleSelect(mainCluster, item.sub_cluster)}
-                                                    onDoubleClick={() => handleDeselect(mainCluster)}
-                                                    isDanger
-                                                />
-                                            ))}
+                                            {items.map(item => {
+                                                const isLocked = lockedClusters.includes(mainCluster);
+                                                const isSelected = selectedRejections[mainCluster] === item.sub_cluster;
+
+                                                return (
+                                                    <div key={item.id} className={`${isLocked ? 'pointer-events-none' : ''} ${isLocked && !isSelected ? 'opacity-40 grayscale' : ''}`}>
+                                                        <RadioOption
+                                                            label={item.nama_opsi}
+                                                            checked={isSelected}
+                                                            onClick={() => !isLocked && handleSelect(mainCluster, item.sub_cluster)}
+                                                            onDoubleClick={() => !isLocked && handleDeselect(mainCluster)}
+                                                            isDanger
+                                                        />
+                                                    </div>
+                                                );
+                                            })}
                                         </>
                                     )}
                                 </div>
@@ -426,9 +419,8 @@ export default function Sidebar({
                 <div className="flex gap-2">
                     <button
                         onClick={onSkip}
-                        disabled={isSubmitting}
-                        className={`flex-1 p-3 bg-gray-500 rounded-md text-white font-bold hover:bg-gray-400 disabled:opacity-50 transition-colors ${isSubmitting ? "animate-pulse" : ""
-                            }`}
+                        disabled={isSubmitting || processingStatus === 'success' || isLoading}
+                        className={`flex-1 p-3 bg-gray-500 rounded-md text-white font-bold hover:bg-gray-400 disabled:opacity-50 transition-colors ${(isSubmitting || processingStatus === 'success' || isLoading) ? "cursor-not-allowed opacity-50" : ""} ${isSubmitting ? "animate-pulse" : ""}`}
                     >
                         {isSubmitting ? (
                             <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent mx-auto"></div>
@@ -438,9 +430,8 @@ export default function Sidebar({
                     </button>
                     <button
                         onClick={onSubmit}
-                        disabled={isSubmitting}
-                        className={`flex-1 p-3 rounded-md text-white font-bold disabled:opacity-50 transition-colors ${mainButtonColor} ${isSubmitting ? "animate-pulse" : ""
-                            }`}
+                        disabled={isSubmitting || processingStatus === 'success' || isLoading}
+                        className={`flex-1 p-3 rounded-md text-white font-bold disabled:opacity-50 transition-colors ${mainButtonColor} ${(isSubmitting || processingStatus === 'success' || isLoading) ? "cursor-not-allowed opacity-50" : ""} ${isSubmitting ? "animate-pulse" : ""}`}
                     >
                         {isSubmitting ? (
                             <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent mx-auto"></div>
