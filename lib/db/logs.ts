@@ -63,7 +63,7 @@ export async function createLogsTable() {
                 SET selisih_hari = DATEDIFF(NEW.tanggal_bapp, '2026-01-24');
                 
                 IF selisih_hari > 0 THEN
-                    SET NEW.denda = CEIL((1 / 1000) * selisih_hari * 9212);
+                    SET NEW.denda = CEIL((1 / 1000) * selisih_hari * 9324);
                 ELSE
                     SET NEW.denda = 0;
                 END IF;
