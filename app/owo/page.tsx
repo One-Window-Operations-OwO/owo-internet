@@ -869,6 +869,17 @@ export default function OwoPage() {
                     setManualSerialNumber={setManualSerialNumber}
                     lockedClusters={lockedClusters}
                     isLoading={loadingDetail}
+                    currentCategory={(() => {
+                        const currentUrl = selectedImage || selectedPdf;
+                        if (!currentDetail?.evidences?.data?.length || !currentUrl) return undefined;
+
+                        const currentEvidence = currentDetail.evidences.data.find(e => {
+                            const proxyUrl = `/api/proxy-file?path=${e.file_path}`;
+                            // Match either the proxy URL or the direct path if url includes it (encoding safe)
+                            return proxyUrl === currentUrl || currentUrl.includes(encodeURIComponent(e.file_path)) || currentUrl.includes(e.file_path);
+                        });
+                        return currentEvidence?.category;
+                    })()}
                 />
             </div>
 
