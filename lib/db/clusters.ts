@@ -57,7 +57,8 @@ export async function seedClusters() {
         ['Serial Number BAPP', '(7B) SN pada BAPP tidak sesuai dengan SN web', 'Tidak sesuai dengan SN Web'],
         ['Serial Number BAPP', '(7C) SN pada BAPP tidak ada', 'Tidak ada'],
         ['Foto Box dan PIC', '(8A) Foto Box dan PIC tidak ada', 'Tidak ada'],
-        ['Skylink Web', '(10A) Nomor BAPP Tidak Ada', 'Nomor BAPP Tidak Ada']
+        ['Skylink Web', '(10A) Nomor BAPP Tidak Ada', 'Nomor BAPP Tidak Ada'],
+        ['Skylink Web', '(10B) Tanggal pada BAPP Tidak Sesuai dengan Web', 'Tanggal BAPP dan Web Berbeda'],
     ];
 
     const connection = await pool.getConnection();
