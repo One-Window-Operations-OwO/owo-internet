@@ -151,11 +151,19 @@ export default function StickyInfoBox({
                                     const currentDate = new Date(verificationDate);
                                     const daysToAdd = e.deltaY > 0 ? -1 : 1;
                                     currentDate.setDate(currentDate.getDate() + daysToAdd);
-                                    const year = currentDate.getFullYear();
-                                    const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-                                    const day = String(currentDate.getDate()).padStart(2, "0");
-                                    setVerificationDate(`${year}-${month}-${day}`);
+
+                                    const minDate = new Date("2025-12-04");
+                                    const maxDate = new Date();
+
+                                    if (currentDate >= minDate && currentDate <= maxDate) {
+                                        const year = currentDate.getFullYear();
+                                        const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+                                        const day = String(currentDate.getDate()).padStart(2, "0");
+                                        setVerificationDate(`${year}-${month}-${day}`);
+                                    }
                                 }}
+                                min="2025-12-04"
+                                max={new Date().toISOString().split("T")[0]}
                                 className="w-full bg-zinc-900 border border-zinc-600 rounded px-2 py-1 text-white focus:outline-none focus:border-yellow-500 text-sm"
                             />
                         </div>

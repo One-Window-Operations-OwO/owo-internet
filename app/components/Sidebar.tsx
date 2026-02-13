@@ -92,6 +92,7 @@ export default function Sidebar({
     const hasRejections = Object.keys(selectedRejections).length > 0 || !!customReason;
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [filterMode, setFilterMode] = useState<'all' | 'filtered'>('filtered');
+    const [inputType, setInputType] = useState<'button' | 'select'>('button');
 
     // Check if "Serial Number BAPP" is rejected
     const isSerialNumberMismatch = Object.entries(selectedRejections).some(([main, sub]) =>
@@ -244,28 +245,56 @@ export default function Sidebar({
                                     {mainCluster}
                                 </label>
                                 <div className="flex flex-wrap gap-1">
-                                    {/* Default "Sesuai" button */}
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDeselect(mainCluster)}
-                                        className={`px-3 py-1 text-xs rounded-full border transition-colors mb-1 mr-1
-                                            ${!selectedRejections[mainCluster]
-                                                ? "bg-green-600 border-green-600 text-white font-semibold"
-                                                : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
-                                            }`}
-                                    >
-                                        Sesuai
-                                    </button>
-                                    {items.map(item => (
-                                        <RadioOption
-                                            key={item.id}
-                                            label={item.nama_opsi}
-                                            checked={selectedRejections[mainCluster] === item.sub_cluster}
-                                            onClick={() => handleSelect(mainCluster, item.sub_cluster)}
-                                            onDoubleClick={() => handleDeselect(mainCluster)}
-                                            isDanger
-                                        />
-                                    ))}
+                                    {inputType === 'select' ? (
+                                        <select
+                                            className={`w-full text-xs rounded px-2 py-1 focus:outline-none transition-colors border
+                                                ${selectedRejections[mainCluster]
+                                                    ? "bg-red-600 border-red-600 text-white font-semibold focus:border-red-400"
+                                                    : "bg-gray-900 border-gray-600 text-white focus:border-blue-500"
+                                                }`}
+                                            value={selectedRejections[mainCluster] || ""}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val) {
+                                                    handleSelect(mainCluster, val);
+                                                } else {
+                                                    handleDeselect(mainCluster);
+                                                }
+                                            }}
+                                        >
+                                            <option value="" className="bg-gray-900 text-white">Sesuai</option>
+                                            {items.map(item => (
+                                                <option key={item.id} value={item.sub_cluster} className="bg-gray-900 text-white">
+                                                    {item.nama_opsi}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <>
+                                            {/* Default "Sesuai" button */}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeselect(mainCluster)}
+                                                className={`px-3 py-1 text-xs rounded-full border transition-colors mb-1 mr-1
+                                                    ${!selectedRejections[mainCluster]
+                                                        ? "bg-green-600 border-green-600 text-white font-semibold"
+                                                        : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
+                                                    }`}
+                                            >
+                                                Sesuai
+                                            </button>
+                                            {items.map(item => (
+                                                <RadioOption
+                                                    key={item.id}
+                                                    label={item.nama_opsi}
+                                                    checked={selectedRejections[mainCluster] === item.sub_cluster}
+                                                    onClick={() => handleSelect(mainCluster, item.sub_cluster)}
+                                                    onDoubleClick={() => handleDeselect(mainCluster)}
+                                                    isDanger
+                                                />
+                                            ))}
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -344,6 +373,33 @@ export default function Sidebar({
                                                     }`}
                                             >
                                                 Right
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Input Type Toggle */}
+                                    <div className="mb-4">
+                                        <label className="text-xs font-bold text-gray-400 block mb-2">
+                                            Input Style
+                                        </label>
+                                        <div className="flex bg-gray-900 p-1 rounded border border-gray-600">
+                                            <button
+                                                onClick={() => setInputType("button")}
+                                                className={`flex-1 py-1 text-xs rounded transition-all ${inputType === "button"
+                                                    ? "bg-blue-600 text-white"
+                                                    : "text-gray-400 hover:text-gray-200"
+                                                    }`}
+                                            >
+                                                Button
+                                            </button>
+                                            <button
+                                                onClick={() => setInputType("select")}
+                                                className={`flex-1 py-1 text-xs rounded transition-all ${inputType === "select"
+                                                    ? "bg-blue-600 text-white"
+                                                    : "text-gray-400 hover:text-gray-200"
+                                                    }`}
+                                            >
+                                                Select
                                             </button>
                                         </div>
                                     </div>
