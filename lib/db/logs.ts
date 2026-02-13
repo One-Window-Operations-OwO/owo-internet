@@ -10,6 +10,8 @@ export const CLUSTER_COLUMN_MAP: Record<string, string> = {
     'Serial Number BAPP': 'serial_number_bapp',
     'Perangkat Terhubung Internet': 'perangkat_terhubung_internet',
     'BAPP': 'bapp',
+    'skylink web': 'skylink_web',
+    'NPSN BAPP': 'npsn_bapp'
 };
 
 export async function createLogsTable() {
@@ -26,6 +28,8 @@ export async function createLogsTable() {
             serial_number_bapp INT NULL,
             perangkat_terhubung_internet INT NULL,
             bapp INT NULL,
+            skylink_web INT NULL,
+            npsn_bapp INT NULL,
             user_id INT NOT NULL,
             status ENUM('REJECTED', 'VERIFIED') NOT NULL,
             tanggal_bapp DATE NULL,
@@ -40,6 +44,8 @@ export async function createLogsTable() {
             FOREIGN KEY (serial_number_bapp) REFERENCES cluster(id) ON DELETE SET NULL,
             FOREIGN KEY (perangkat_terhubung_internet) REFERENCES cluster(id) ON DELETE SET NULL,
             FOREIGN KEY (bapp) REFERENCES cluster(id) ON DELETE SET NULL,
+            FOREIGN KEY (skylink_web) REFERENCES cluster(id) ON DELETE SET NULL,
+            FOREIGN KEY (npsn_bapp) REFERENCES cluster(id) ON DELETE SET NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
     `;
