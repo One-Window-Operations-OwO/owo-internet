@@ -12,8 +12,8 @@ interface StickyInfoBoxProps {
     receivedDate: string;
     // New Props for Compatibility
     history?: any[];
-    verificationDate?: string;
-    setVerificationDate?: (date: string) => void;
+    tangalBapp?: string;
+    setTanggalBapp?: (date: string) => void;
 }
 
 export default function StickyInfoBox({
@@ -24,8 +24,8 @@ export default function StickyInfoBox({
     shipmentStatus,
     receivedDate,
     history = [],
-    verificationDate,
-    setVerificationDate,
+    tangalBapp,
+    setTanggalBapp,
 }: StickyInfoBoxProps) {
     const boxRef = useRef<HTMLDivElement>(null!);
     const { position, handleMouseDown } = useDraggable<HTMLDivElement>(
@@ -134,8 +134,8 @@ export default function StickyInfoBox({
                     </div>
                 </div>
 
-                {/* Date Input (Verification Date) */}
-                {verificationDate !== undefined && setVerificationDate && (
+                {/* Date Input (Tanggal BAPP) */}
+                {tangalBapp !== undefined && setTanggalBapp && (
                     <>
                         <hr className="border-zinc-700" />
                         <div>
@@ -144,26 +144,23 @@ export default function StickyInfoBox({
                             </label>
                             <input
                                 type="date"
-                                value={verificationDate}
-                                onChange={(e) => setVerificationDate(e.target.value)}
+                                value={tangalBapp}
+                                onChange={(e) => setTanggalBapp(e.target.value)}
                                 onWheel={(e) => {
-                                    if (!verificationDate) return;
-                                    const currentDate = new Date(verificationDate);
+                                    if (!tangalBapp) return;
+                                    const currentDate = new Date(tangalBapp);
                                     const daysToAdd = e.deltaY > 0 ? -1 : 1;
                                     currentDate.setDate(currentDate.getDate() + daysToAdd);
 
-                                    const minDate = new Date("2025-12-04");
+                                    const minDate = new Date("2025-01-01"); // Adjusted min date reasonably
                                     const maxDate = new Date();
 
-                                    if (currentDate >= minDate && currentDate <= maxDate) {
-                                        const year = currentDate.getFullYear();
-                                        const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-                                        const day = String(currentDate.getDate()).padStart(2, "0");
-                                        setVerificationDate(`${year}-${month}-${day}`);
-                                    }
+                                    // Simple check, or allow any date
+                                    const year = currentDate.getFullYear();
+                                    const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+                                    const day = String(currentDate.getDate()).padStart(2, "0");
+                                    setTanggalBapp(`${year}-${month}-${day}`);
                                 }}
-                                min="2025-12-04"
-                                max={new Date().toISOString().split("T")[0]}
                                 className="w-full bg-zinc-900 border border-zinc-600 rounded px-2 py-1 text-white focus:outline-none focus:border-yellow-500 text-sm"
                             />
                         </div>

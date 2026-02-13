@@ -90,6 +90,7 @@ export default function Sidebar({
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [filterMode, setFilterMode] = useState<'all' | 'filtered'>('filtered');
     const [inputType, setInputType] = useState<'button' | 'select'>('button');
+    const [showRemaining, setShowRemaining] = useState(true);
 
     // Check if "Serial Number BAPP" is rejected
     const isSerialNumberMismatch = Object.entries(selectedRejections).some(([main, sub]) =>
@@ -175,6 +176,8 @@ export default function Sidebar({
                     onRetry={onRetry}
                 />
             </div>
+
+
 
 
 
@@ -319,10 +322,27 @@ export default function Sidebar({
                 {/* Compact Info Row */}
                 <div className="flex items-center justify-between mb-3 bg-gray-900/50 p-2 rounded border border-gray-700">
                     <div className="flex items-center gap-2 select-none">
-                        <span className="text-xs text-gray-400">Progress:</span>
-                        <span className="text-sm font-bold text-white">
-                            {currentIndex + 1}/{totalItems}
+                        <span className="text-xs text-gray-400">Sisa :</span>
+                        <span className="text-sm font-bold text-white min-w-[30px]">
+                            {showRemaining ? totalItems : "•••"}
                         </span>
+                        <button
+                            onClick={() => setShowRemaining(!showRemaining)}
+                            className="p-1 text-gray-500 hover:text-white transition-colors focus:outline-none"
+                            title={showRemaining ? "Sembunyikan sisa" : "Tampilkan sisa"}
+                        >
+                            {showRemaining ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                    <line x1="1" y1="1" x2="23" y2="23" />
+                                </svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                    <circle cx="12" cy="12" r="3" />
+                                </svg>
+                            )}
+                        </button>
                     </div>
 
                     {/* Options Menu */}

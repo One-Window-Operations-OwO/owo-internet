@@ -56,6 +56,7 @@ export interface Cluster {
 export default function OwoPage() {
     const [queue, setQueue] = useState<BappItem[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
+    const currentItem = queue[currentIndex];
     const [currentDetail, setCurrentDetail] = useState<ShipmentDetail | null>(null);
     const [loadingList, setLoadingList] = useState(true);
     const [loadingDetail, setLoadingDetail] = useState(false);
@@ -152,7 +153,18 @@ export default function OwoPage() {
                 if (res.ok) {
                     const data = await res.json();
                     if (data.success) {
-                        setClusters(data.data);
+                        const fetchedClusters: Cluster[] = data.data;
+                        // Inject (10B) if missing (Frontend-only injection as requested)
+                        const has10B = fetchedClusters.some(c => c.sub_cluster === '(10B) Tanggal pada BAPP Tidak Sesuai dengan Web');
+                        if (!has10B) {
+                            fetchedClusters.push({
+                                id: 9999, // Temp ID
+                                main_cluster: 'Skylink Web',
+                                sub_cluster: '(10B) Tanggal pada BAPP Tidak Sesuai dengan Web',
+                                nama_opsi: 'Tanggal BAPP dan Web Berbeda'
+                            });
+                        }
+                        setClusters(fetchedClusters);
                     }
                 }
             } catch (error) {
@@ -393,6 +405,53 @@ export default function OwoPage() {
     }, [queue, currentIndex, clusters]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
+
+    // Date Mismatch Logic
+    useEffect(() => {
+        if (!currentItem) return;
+
+        let receivedDate = '';
+        if (currentItem.received_date) {
+            const d = new Date(currentItem.received_date);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            receivedDate = `${year}-${month}-${day}`;
+        }
+
+        const mainCluster = 'Skylink Web';
+        const reason = '(10B) Tanggal pada BAPP Tidak Sesuai dengan Web';
+
+        if (tanggalBapp && receivedDate && tanggalBapp !== receivedDate) {
+            const currentRejection = selectedRejections[mainCluster];
+            // Priority: If "Nomor BAPP Tidak Ada" is already active, do not overwrite it.
+            if (currentRejection && currentRejection.includes("Nomor BAPP Tidak Ada")) {
+                return;
+            }
+
+            setLockedClusters(prev => {
+                const newLocks = new Set(prev);
+                newLocks.add(mainCluster);
+                return Array.from(newLocks);
+            });
+
+            setSelectedRejections(prev => {
+                const next = { ...prev, [mainCluster]: reason };
+                setCustomReason(Array.from(new Set(Object.values(next))).join('; '));
+                return next;
+            });
+        } else if (tanggalBapp && receivedDate && tanggalBapp === receivedDate) {
+            if (selectedRejections[mainCluster] === reason) {
+                setLockedClusters(prev => prev.filter(c => c !== mainCluster));
+                setSelectedRejections(prev => {
+                    const next = { ...prev };
+                    delete next[mainCluster];
+                    setCustomReason(Array.from(new Set(Object.values(next))).join('; '));
+                    return next;
+                });
+            }
+        }
+    }, [tanggalBapp, currentItem, selectedRejections]); // Added dependency on selectedRejections to check value
 
     // Update manualSerialNumber based on selectedRejections['Serial Number BAPP']
     useEffect(() => {
@@ -783,8 +842,6 @@ export default function OwoPage() {
         );
     }
 
-    const currentItem = queue[currentIndex];
-
     return (
         <div className="flex h-screen w-full bg-zinc-50 dark:bg-black overflow-hidden relative">
             {/* Sidebar */}
@@ -798,8 +855,10 @@ export default function OwoPage() {
                     customReason={customReason}
                     setCustomReason={setCustomReason}
                     onSubmit={handleSubmit}
-                    isLoading={loadingDetail}
-                    onSkip={handleNext}
+                    onSkip={() => {
+                        handleNext();
+                        setProcessingStatus("idle");
+                    }}
                     isSubmitting={isSubmitting}
                     processingStatus={processingStatus}
                     errorMessage={processingError}
@@ -809,17 +868,7 @@ export default function OwoPage() {
                     manualSerialNumber={manualSerialNumber}
                     setManualSerialNumber={setManualSerialNumber}
                     lockedClusters={lockedClusters}
-                    currentCategory={(() => {
-                        const currentUrl = selectedImage || selectedPdf;
-                        if (!currentDetail?.evidences?.data?.length || !currentUrl) return undefined;
-
-                        const currentEvidence = currentDetail.evidences.data.find(e => {
-                            const proxyUrl = `/api/proxy-file?path=${e.file_path}`;
-                            // Match either the proxy URL or the direct path if url includes it (encoding safe)
-                            return proxyUrl === currentUrl || currentUrl.includes(encodeURIComponent(e.file_path)) || currentUrl.includes(e.file_path);
-                        });
-                        return currentEvidence?.category;
-                    })()}
+                    isLoading={loadingDetail}
                 />
             </div>
 
@@ -1240,8 +1289,8 @@ export default function OwoPage() {
                         month: 'long',
                         day: 'numeric'
                     })}
-                    verificationDate={tanggalBapp}
-                    setVerificationDate={setTanggalBapp}
+                    tangalBapp={tanggalBapp}
+                    setTanggalBapp={setTanggalBapp}
                     history={history}
                 />
             )}
