@@ -69,7 +69,7 @@ export default function PdfViewer({
                         key={idx}
                         src={img}
                         alt={`PDF page ${idx + 1}`}
-                        className="shadow-md"
+                        className="shadow-md w-full h-full object-contain"
                         style={{
                             transform: `scale(${scale}) rotate(${rotate}deg)`,
                             transformOrigin: "center center",
@@ -88,6 +88,7 @@ export default function PdfViewer({
             <img
                 src={pageImage}
                 alt={`PDF page ${pageNumber}`}
+                className="w-full h-full object-contain shadow-md"
                 style={{
                     transform: `scale(${scale}) rotate(${rotate}deg)`,
                     transformOrigin: "center center",

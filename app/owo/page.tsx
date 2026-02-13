@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import dynamic from 'next/dynamic';
 import Sidebar from '../components/Sidebar';
 import StickyInfoBox from '../components/StickyInfoBox';
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import type { ProcessStatus } from '../components/ProcessStatusLight';
 
 // Dynamically import PdfViewer with SSR disabled to avoid DOMMatrix error
@@ -80,6 +80,8 @@ export default function OwoPage() {
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const imageRef = useRef<HTMLImageElement>(null);
     const isModalOpenRef = useRef(false);
+    const pdfTransformRef = useRef<ReactZoomPanPinchRef>(null);
+    const lastScrollTimeRef = useRef(0);
 
     const handleMouseDown = (e: React.MouseEvent) => {
         if (zoom > 1) {
@@ -666,12 +668,12 @@ export default function OwoPage() {
         });
     };
 
-    const handlePdfZoomIn = () => setPdfZoom(prev => Math.min(prev + 0.25, 3));
-    const handlePdfZoomOut = () => setPdfZoom(prev => Math.max(prev - 0.25, 0.5));
+    const handlePdfZoomIn = () => pdfTransformRef.current?.zoomIn(0.25);
+    const handlePdfZoomOut = () => pdfTransformRef.current?.zoomOut(0.25);
     const handlePdfRotateLeft = () => setPdfRotation(prev => prev - 90);
     const handlePdfRotateRight = () => setPdfRotation(prev => prev + 90);
     const handlePdfReset = () => {
-        setPdfZoom(1);
+        pdfTransformRef.current?.resetTransform();
         setPdfRotation(0);
         setPdfPageNumber(1);
     };
@@ -773,16 +775,8 @@ export default function OwoPage() {
             const delta = e.deltaY * -0.001;
             const newScale = delta > 0 ? 0.1 : -0.1;
             setZoom(prev => Math.min(Math.max(0.2, prev + newScale), 5));
-        } else if (selectedPdf) {
-            if (e.ctrlKey) {
-                e.preventDefault();
-                e.stopPropagation();
-                const delta = e.deltaY * -0.001;
-                const newScale = delta > 0 ? 0.1 : -0.1;
-                setPdfZoom(prev => Math.min(Math.max(0.5, prev + newScale), 5));
-            }
         }
-    }, [selectedImage, selectedPdf]);
+    }, [selectedImage]);
 
 
     if (loadingList) {
@@ -1124,6 +1118,7 @@ export default function OwoPage() {
                                             </button>
                                         </div>
                                         <div className="w-px h-6 bg-neutral-800 mx-1"></div>
+                                        <div className="w-px h-6 bg-neutral-800 mx-1"></div>
                                         <button onClick={handlePdfReset} className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors border border-transparent hover:border-neutral-700" title="Reset view">
                                             Reset
                                         </button>
@@ -1197,16 +1192,47 @@ export default function OwoPage() {
 
 
                             {selectedPdf ? (
-                                <div className="w-full h-full p-4 overflow-auto flex justify-center custom-scrollbar">
-                                    <PdfViewer
-                                        file={selectedPdf!}
-                                        allPages={true}
-                                        scale={pdfZoom}
-                                        rotate={pdfRotation}
-                                        onLoadSuccess={onDocumentLoadSuccess}
-                                        width={1000}
-                                        className="shadow-2xl"
-                                    />
+                                <div
+                                    className="w-full h-full p-4 overflow-hidden flex justify-center bg-black/50"
+                                    onWheel={(e) => {
+                                        if (e.shiftKey) return; // Let TransformWrapper handle zoom
+
+                                        // Manual Vertical Pan
+                                        if (pdfTransformRef.current) {
+                                            const { positionX, positionY, scale } = pdfTransformRef.current.instance.transformState;
+                                            // Multiply deltaY by 3 for faster scrolling
+                                            const shift = e.deltaY * 3;
+                                            const newY = positionY - shift;
+                                            // We rely on the library to clamp bounds if configured, or just let it scroll
+                                            pdfTransformRef.current.setTransform(positionX, newY, scale);
+                                        }
+                                    }}
+                                >
+                                    <TransformWrapper
+                                        ref={pdfTransformRef}
+                                        initialScale={1}
+                                        minScale={0.5}
+                                        maxScale={5}
+                                        centerZoomedOut={false}
+                                        limitToBounds={false}
+                                        wheel={{ step: 0.1, activationKeys: ['Shift'] }}
+                                        onTransformed={(e) => setPdfZoom(e.state.scale)}
+                                    >
+                                        <TransformComponent
+                                            wrapperClass="!w-full !h-full"
+                                            contentClass="!w-full !h-full flex justify-center"
+                                        >
+                                            <PdfViewer
+                                                file={selectedPdf!}
+                                                allPages={true}
+                                                scale={1}
+                                                rotate={pdfRotation}
+                                                onLoadSuccess={onDocumentLoadSuccess}
+                                                width={1500}
+                                                className="shadow-2xl w-full h-full flex items-center justify-center"
+                                            />
+                                        </TransformComponent>
+                                    </TransformWrapper>
                                 </div>
                             ) : (
                                 <div className="flex-1 flex items-center justify-center p-4 overflow-hidden w-full h-full">
