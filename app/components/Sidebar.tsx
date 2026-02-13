@@ -56,7 +56,7 @@ interface SidebarProps {
 }
 
 const CATEGORY_MAIN_CLUSTERS: Record<string, string[]> = {
-    'BAPP': ['BAPP', 'Serial Number BAPP'],
+    'BAPP': ['BAPP', 'Serial Number BAPP', 'NPSN BAPP'],
     'SERIAL_NUMBER': ['Serial Number Kardus', 'Geo Tagging'],
     'CONNECTED_DEVICE': ['Perangkat Terhubung Internet',],
     'PLANG_SEKOLAH': ['Foto Sekolah', 'Geo Tagging'],
