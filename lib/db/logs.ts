@@ -31,7 +31,7 @@ export async function createLogsTable() {
             skylink_web INT NULL,
             npsn_bapp INT NULL,
             denda INT NULL,
-            user_id INT NOT NULL,
+            user_id INT NULL,
             status ENUM('REJECTED', 'VERIFIED') NOT NULL,
             tanggal_bapp DATE NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -47,7 +47,7 @@ export async function createLogsTable() {
             FOREIGN KEY (bapp) REFERENCES cluster(id) ON DELETE SET NULL,
             FOREIGN KEY (skylink_web) REFERENCES cluster(id) ON DELETE SET NULL,
             FOREIGN KEY (npsn_bapp) REFERENCES cluster(id) ON DELETE SET NULL,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         );
     `;
     const dropTriggerQuery = `DROP TRIGGER IF EXISTS trg_hitung_denda_insert;`;
@@ -86,6 +86,8 @@ export async function createLogsTable() {
             await conn.query("ALTER TABLE logs ADD COLUMN tanggal_bapp DATE NULL");
         }
 
+        // Migration: Check if user_id is nullable (optional: can drop fk and alter here but typically handled manually or via dedicated migration script)
+
         // Migration: Check if created_at column exists
         const [caCols]: any = await conn.query("SHOW COLUMNS FROM logs LIKE 'created_at'");
         if (caCols.length === 0) {
@@ -112,7 +114,7 @@ export interface ClusterValues {
 export async function insertLog(
     cutoffId: number,
     serialNumber: string,
-    userId: number,
+    userId: number | null,
     clusterValues?: ClusterValues,
     tanggalBapp?: string
 ) {

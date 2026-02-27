@@ -63,6 +63,7 @@ export default function OwoPage() {
     const [error, setError] = useState<string | null>(null);
     const [prefetchData, setPrefetchData] = useState<{ id: number; data: ShipmentDetail } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [failedLog, setFailedLog] = useState<{ error: string, data: any } | null>(null);
 
     // Sidebar Position State
     const [sidebarPosition, setSidebarPosition] = useState<"left" | "right">("left");
@@ -526,7 +527,7 @@ export default function OwoPage() {
         if (hasRejections) {
             const reasons = Object.entries(selectedRejections)
                 .filter(([_, value]) => value)
-                .map(([key, value]) => `${key}: ${value}`);
+                .map(([_, value]) => `${value}`);
 
             if (customReason && !reasons.some(r => r.includes(customReason))) {
                 finalReason = customReason;
@@ -562,25 +563,43 @@ export default function OwoPage() {
                 const finalSerialNumber = isSerialNumberMismatch ? manualSerialNumber : currentItem.starlink_id;
 
                 // Insert log to database
+                const logData = {
+                    cutoff_id: currentItem.id,
+                    serial_number: finalSerialNumber,
+                    user_id: parseInt(userId),
+                    rejections: selectedRejections,
+                    tanggal_bapp: tanggalBapp
+                };
+
                 try {
-                    await fetch('/api/insert-log', {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+                    const logRes = await fetch('/api/insert-log', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            cutoff_id: currentItem.id,
-                            serial_number: finalSerialNumber,
-                            user_id: parseInt(userId),
-                            rejections: selectedRejections,
-                            tanggal_bapp: tanggalBapp
-                        })
+                        body: JSON.stringify(logData),
+                        signal: controller.signal
                     });
-                } catch (logError) {
-                    console.error("Failed to insert log:", logError);
-                }
 
-                setProcessingStatus("success");
-                setTimeout(() => setProcessingStatus("idle"), 2000);
-                handleNext();
+                    clearTimeout(timeoutId);
+
+                    if (!logRes.ok) {
+                        const logErr = await logRes.json().catch(() => ({}));
+                        throw new Error(logErr.error || `HTTP error ${logRes.status}`);
+                    }
+
+                    setProcessingStatus("success");
+                    setTimeout(() => setProcessingStatus("idle"), 2000);
+                    handleNext();
+                } catch (logError: any) {
+                    console.error("Failed to insert log:", logError);
+                    setProcessingStatus("idle");
+                    setFailedLog({
+                        error: logError.name === 'AbortError' ? 'Request timeout (exceeded 3 seconds)' : (logError.message || String(logError)),
+                        data: logData
+                    });
+                }
             } else {
                 const data = await res.json();
                 setProcessingStatus("error");
@@ -594,6 +613,38 @@ export default function OwoPage() {
             alert(`An error occurred while trying to ${status.toLowerCase()}.`);
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const retryLogInsert = async () => {
+        if (!failedLog) return;
+        setProcessingStatus("processing");
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+            const logRes = await fetch('/api/insert-log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(failedLog.data),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!logRes.ok) {
+                const logErr = await logRes.json().catch(() => ({}));
+                throw new Error(logErr.error || `HTTP error ${logRes.status}`);
+            }
+
+            setFailedLog(null);
+            setProcessingStatus("success");
+            setTimeout(() => setProcessingStatus("idle"), 2000);
+            handleNext();
+        } catch (error: any) {
+            console.error("Retry failed:", error);
+            setFailedLog({ ...failedLog, error: error.name === 'AbortError' ? 'Request timeout (exceeded 3 seconds)' : (error.message || String(error)) });
+            setProcessingStatus("idle");
         }
     };
 
@@ -1356,6 +1407,48 @@ export default function OwoPage() {
                     />
                 )
             }
+
+            {/* Failed Log Modal */}
+            {failedLog && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl max-w-md w-full p-6 border border-zinc-200 dark:border-zinc-800">
+                        <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-4">
+                            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <h3 className="text-lg font-bold">Failed to Insert Log</h3>
+                        </div>
+                        <p className="text-zinc-600 dark:text-zinc-400 mb-2">
+                            The status was updated successfully, but saving the history log failed. Please retry.
+                        </p>
+                        <div className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400 p-3 rounded-lg text-sm font-mono break-all mb-6 border border-red-100 dark:border-red-900/50">
+                            {failedLog.error}
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setFailedLog(null)}
+                                className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={retryLogInsert}
+                                disabled={processingStatus === 'processing'}
+                                className="px-5 py-2 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {processingStatus === 'processing' ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        Retrying...
+                                    </>
+                                ) : (
+                                    'Retry Insert Log'
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div >
     );

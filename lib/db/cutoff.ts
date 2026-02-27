@@ -158,3 +158,60 @@ export async function insertCutoffHistoryLog(data: {
         conn.release();
     }
 }
+
+export async function getExistingShipmentIds(shipmentIds: number[]) {
+    if (!shipmentIds || shipmentIds.length === 0) return [];
+
+    const conn = await pool.getConnection();
+    try {
+        const query = `
+            SELECT shipment_id 
+            FROM cutoff 
+            WHERE shipment_id IN (?)
+        `;
+        const [rows]: any = await conn.query(query, [shipmentIds]);
+        return rows.map((row: any) => row.shipment_id);
+    } finally {
+        conn.release();
+    }
+}
+
+export async function getCutoffsNotIn(shipmentIds: number[]) {
+    const conn = await pool.getConnection();
+    try {
+        if (!shipmentIds || shipmentIds.length === 0) {
+            const [rows]: any = await conn.query(`SELECT * FROM cutoff`);
+            return rows;
+        }
+
+        const query = `
+            SELECT * 
+            FROM cutoff 
+            WHERE shipment_id NOT IN (?)
+        `;
+        const [rows]: any = await conn.query(query, [shipmentIds]);
+        return rows;
+    } finally {
+        conn.release();
+    }
+}
+
+export async function getNullUserIdCutoffs() {
+    const conn = await pool.getConnection();
+    try {
+        const [rows] = await conn.query(`SELECT id, shipment_id FROM cutoff WHERE user_id IS NULL`);
+        return rows as any[];
+    } finally {
+        conn.release();
+    }
+}
+
+export async function updateCutoffUserId(id: number, userId: number) {
+    const conn = await pool.getConnection();
+    try {
+        await conn.query(`UPDATE cutoff SET user_id = ? WHERE id = ?`, [userId, id]);
+    } finally {
+        conn.release();
+    }
+}
+
