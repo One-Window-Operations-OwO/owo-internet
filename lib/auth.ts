@@ -13,6 +13,29 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const token = cookieStore.get("access_token")?.value;
 
     if (!token) return null;
+    if (token.startsWith("local_token:")) {
+        const username = token.replace("local_token:", "");
+        if (username) {
+            // Try as direct email first, then constructed email
+            let localUser = await getUserByEmail(username);
+            
+            if (!localUser) {
+                const constructedEmail = `${username}@sab.id`;
+                localUser = await getUserByEmail(constructedEmail);
+            }
+            
+            if (localUser) {
+                return {
+                    email: localUser.email,
+                    name: localUser.name,
+                    local_user_id: localUser.id,
+                    local_role: localUser.role
+                };
+            }
+        }
+        // If local user verification fails, we still return null
+        return null;
+    }
 
     try {
         const skylinkUrl = process.env.SKYLINK_URL;

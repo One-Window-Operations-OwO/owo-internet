@@ -7,6 +7,7 @@ export async function createUserTable() {
             id INT AUTO_INCREMENT PRIMARY KEY,
             email VARCHAR(255) NOT NULL UNIQUE,
             name VARCHAR(255),
+            password VARCHAR(255),
             role VARCHAR(50) DEFAULT 'user',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -38,6 +39,20 @@ const userList = [
     { username: "ikhsansd19", password: "ikhsandewo19" },
     { username: "rizkysd20", password: "rizakbar20" },
     { username: "alyssasd26", password: "maulidina26" },
+    { username: "fikihnurkhakim", password: "khakim123" },
+    { username: "muhammadfarrosjabbarali", password: "farros123" },
+    { username: "shabirahjulinka", password: "shabira123" },
+    { username: "amelianur", password: "amelia123" },
+    { username: "fadhilahmuhammad", password: "fadilah123" },
+    { username: "raihanputra", password: "raihan123" },
+    { username: "rizqirasyid", password: "rizqi123" },
+    { username: "tegartrihartono", password: "hartono123" },
+    { username: "muhammadshidqiramadhan", password: "ramadhan123" },
+    { username: "dheaputriamanda", password: "amanda123" },
+    { username: "sultanfadhlyabdullah", password: "abdullah123" },
+    { username: "bagasfebriansyah", password: "febriansyah123" },
+    { username: "ahmadakhdankasyfi", password: "kasyfi123" },
+    { username: "asyilahasyafatharani", password: "fatharani123" },
 ];
 
 export async function seedUsers() {
@@ -66,7 +81,36 @@ export async function seedUsers() {
     }
 }
 
-export function verifyLocalCredentials(username: string, password: string) {
+export async function verifyLocalCredentials(username: string, password: string) {
+    const conn = await pool.getConnection();
+    try {
+        // Try to match against email/username AND password
+        
+        // Strategy 1: username is actually an email
+        // Strategy 2: username is just a username, so we construct email
+        // Strategy 3: username matches 'name' column? maybe less reliable
+        // Let's check both raw username (as email) and constructed email.
+        
+        const constructedEmail = `${username}@sab.id`;
+        
+        // Query looks for email matching username OR constructed email
+        const query = `
+            SELECT * FROM users 
+            WHERE (email = ? OR email = ?) 
+            AND password = ?
+        `;
+        
+        const [rows] = await conn.query(query, [username, constructedEmail, password]);
+        
+        const user = (rows as any)[0];
+        if (user) return user;
+    } catch (e) {
+        console.error("Error verifying local credentials:", e);
+    } finally {
+        conn.release();
+    }
+    
+    // Fallback to hardcoded list if DB check fails
     return userList.find(u => u.username === username && u.password === password);
 }
 

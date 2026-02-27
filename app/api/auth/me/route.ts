@@ -10,31 +10,34 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ message: "No token provided" }, { status: 401 });
     }
 
-    try {
-        // Check if using local fallback token
-        if (token.startsWith("local_token_")) {
-            const base64Email = token.replace("local_token_", "");
-            try {
-                const email = Buffer.from(base64Email, 'base64').toString('utf-8');
-                const { getUserByEmail } = await import("@/lib/db/users");
-                const localUser = await getUserByEmail(email);
+    const { getUserByEmail } = await import("@/lib/db/users");
+    
+    // Check if using local fallback token
+    if (token && token.startsWith("local_token:")) {
+        const username = token.replace("local_token:", "");
+        if (username) {
+            // Try as direct email first, then constructed email
+            let localUser = await getUserByEmail(username);
+            
+            if (!localUser) {
+                const constructedEmail = `${username}@sab.id`;
+                localUser = await getUserByEmail(constructedEmail);
+            }
 
-                if (localUser) {
-                     return NextResponse.json({
-                        id: localUser.id,
-                        name: localUser.name,
-                        email: localUser.email,
-                        local_user_id: localUser.id,
-                        local_role: localUser.role
-                    });
-                } else {
-                    return NextResponse.json({ message: "Local user not found" }, { status: 401 });
-                }
-            } catch (e) {
-                 return NextResponse.json({ message: "Invalid local token format" }, { status: 401 });
+            if (localUser) {
+                 return NextResponse.json({
+                    id: localUser.id,
+                    name: localUser.name,
+                    email: localUser.email,
+                    local_user_id: localUser.id,
+                    local_role: localUser.role
+                });
             }
         }
+        return NextResponse.json({ message: "Invalid or expired local token" }, { status: 401 });
+    }
 
+    try {
         const skylinkUrl = process.env.SKYLINK_URL;
         if (!skylinkUrl) {
             return NextResponse.json({ message: "Server configuration error" }, { status: 500 });

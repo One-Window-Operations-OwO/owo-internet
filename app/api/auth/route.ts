@@ -48,7 +48,25 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // Fallback to local authentication if Skylink failed or wasn't attempted
         if (!authSuccess) {
+            const localUser = await verifyLocalCredentials(username, password);
+            if (localUser) {
+                authSuccess = true;
+                const email = localUser.email || `${username}@sab.id`; // Construct or use from DB
+                data = {
+                    email: email,
+                    name: localUser.name || username,
+                    role: localUser.role || "user",
+                    access_token: `local_token:${username}` // Special token for local auth
+                };
+                emailForDb = email;
+                console.log("Local authentication successful (DB/Map) for:", username);
+            }
+        }
+
+        if (!authSuccess) {
+            console.log("Local auth failed. Username:", username);
             return NextResponse.json(
                 { message: "Invalid credentials" },
                 { status: 401 }
