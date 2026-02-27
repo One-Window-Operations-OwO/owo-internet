@@ -28,6 +28,12 @@ const ADMIN_MENU = [
   { label: "Cutoff Process", href: "/admin/cutoff", Icon: LuScissors },
 ];
 
+const LOCAL_ADMIN_MENU = [
+  { label: "Dashboard", href: "/dashboard", Icon: LuLayoutDashboard },
+  { label: "Users List", href: "/admin/users", Icon: LuUsers },
+  // "Cutoff Process" is hidden for local fallback admins
+];
+
 export default function Sidebar() {
   const { user, isAdmin } = useAuth();
   const router = useRouter();
@@ -63,7 +69,25 @@ export default function Sidebar() {
     }
   };
 
-  const menuItems = isAdmin ? ADMIN_MENU : USER_MENU;
+  // Determine if user is logged in via local fallback (token-based check or missing certain skylink fields)
+  // Our local tokens don't have 'scope', but skylink ones do. Or we can check if ID is missing.
+  // Actually, we can check if email ends in @sab.id (though skylink users might too).
+  // Better yet, check if `local_role` exists but `role` (skylink role) is missing/default or something.
+  // For now, let's assume if scope is missing, it's local auth.
+
+  // Adjusted logic:
+  // If user is Admin but created via local fallback (no skylink scope/role usually present or different), show limited menu.
+  // In our auth flow:
+  // Local fallback user: role="user" (from verifiedLocalCredentials default in route OR what's in DB), but maybe local_role is admin?
+  // Let's rely on `user.scope`. Skylink provides scope. Local usually doesn't unless we mock it.
+
+  const isLocalFallback = !user?.scope;
+
+  const menuItems = isAdmin
+    ? isLocalFallback
+      ? LOCAL_ADMIN_MENU
+      : ADMIN_MENU
+    : USER_MENU;
 
   return (
     <aside className="w-72 border-r hidden md:flex flex-col fixed inset-y-0 z-50 bg-white dark:bg-zinc-950 border-neutral-200 dark:border-zinc-800 transition-colors duration-300">
