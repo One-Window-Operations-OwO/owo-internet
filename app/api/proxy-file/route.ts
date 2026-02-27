@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
             headers: {
                 "Content-Type": contentType,
                 "Content-Disposition": "inline",
+                "Cache-Control": "public, max-age=31536000, immutable",
             },
         });
     } catch (error) {

@@ -397,6 +397,22 @@ export default function OwoPage() {
                         const data = await res.json();
                         if (isMounted) {
                             setPrefetchData({ id: nextItem.shipment_id, data });
+
+                            // Prefetch images and PDFs
+                            if (data?.evidences?.data && Array.isArray(data.evidences.data)) {
+                                data.evidences.data.forEach((ev: EvidenceItem) => {
+                                    if (!ev?.file_path) return;
+                                    const fileUrl = `/api/proxy-file?path=${ev.file_path}`;
+                                    if (ev.file_path.toLowerCase().endsWith('.pdf')) {
+                                        // Fetch PDF to browser cache
+                                        fetch(fileUrl, { priority: 'low' } as RequestInit).catch(() => { });
+                                    } else {
+                                        // Prefetch image to browser cache
+                                        const img = new Image();
+                                        img.src = fileUrl;
+                                    }
+                                });
+                            }
                         }
                     }
                 } catch (err) {

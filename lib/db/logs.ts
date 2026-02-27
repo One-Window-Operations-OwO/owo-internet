@@ -10,7 +10,7 @@ export const CLUSTER_COLUMN_MAP: Record<string, string> = {
     'Serial Number BAPP': 'serial_number_bapp',
     'Perangkat Terhubung Internet': 'perangkat_terhubung_internet',
     'BAPP': 'bapp',
-    'skylink web': 'skylink_web',
+    'Skylink Web': 'skylink_web',
     'NPSN BAPP': 'npsn_bapp'
 };
 
@@ -109,6 +109,8 @@ export interface ClusterValues {
     serial_number_bapp?: number | null;
     perangkat_terhubung_internet?: number | null;
     bapp?: number | null;
+    skylink_web?: number | null;
+    npsn_bapp?: number | null;
 }
 
 export async function insertLog(
@@ -137,8 +139,8 @@ export async function insertLog(
                 geo_tagging, foto_sekolah, foto_box_dan_pic,
                 kelengkapan_unit, foto_serial_number_kardus,
                 serial_number_bapp, perangkat_terhubung_internet, bapp,
-                tanggal_bapp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                skylink_web, npsn_bapp, tanggal_bapp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 cutoffId,
                 serialNumber,
@@ -152,6 +154,8 @@ export async function insertLog(
                 cv.serial_number_bapp ?? null,
                 cv.perangkat_terhubung_internet ?? null,
                 cv.bapp ?? null,
+                cv.skylink_web ?? null,
+                cv.npsn_bapp ?? null,
                 tanggalBapp ?? null,
             ]
         );
