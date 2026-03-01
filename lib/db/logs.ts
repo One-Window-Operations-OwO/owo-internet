@@ -32,7 +32,7 @@ export async function createLogsTable() {
             npsn_bapp INT NULL,
             denda INT NULL,
             user_id INT NULL,
-            status ENUM('REJECTED', 'VERIFIED') NOT NULL,
+            status ENUM('REJECTED', 'VERIFIED','SENDING') NOT NULL,
             tanggal_bapp DATE NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             
@@ -77,7 +77,7 @@ export async function createLogsTable() {
         // Migration: Check if status column exists, if not add it
         const [columns]: any = await conn.query("SHOW COLUMNS FROM logs LIKE 'status'");
         if (columns.length === 0) {
-            await conn.query("ALTER TABLE logs ADD COLUMN status ENUM('REJECTED', 'VERIFIED') DEFAULT NULL");
+            await conn.query("ALTER TABLE logs ADD COLUMN status ENUM('REJECTED', 'VERIFIED','SENDING') DEFAULT NULL");
         }
 
         // Migration: Check if tanggal_bapp column exists
@@ -118,7 +118,8 @@ export async function insertLog(
     serialNumber: string,
     userId: number | null,
     clusterValues?: ClusterValues,
-    tanggalBapp?: string
+    tanggalBapp?: string,
+    defaultStatus?: string
 ) {
     const conn = await pool.getConnection();
     try {
@@ -131,7 +132,7 @@ export async function insertLog(
         // Determine status based on whether any cluster has a non-null value
         const cv = clusterValues || {};
         const hasRejection = Object.values(cv).some(v => v !== null && v !== undefined);
-        const status = hasRejection ? 'REJECTED' : 'VERIFIED';
+        const status = defaultStatus || (hasRejection ? 'REJECTED' : 'VERIFIED');
 
         const [result]: any = await conn.query(
             `INSERT INTO logs (
@@ -160,6 +161,15 @@ export async function insertLog(
             ]
         );
         return result.insertId;
+    } finally {
+        conn.release();
+    }
+}
+
+export async function updateLogStatus(logId: number, status: string) {
+    const conn = await pool.getConnection();
+    try {
+        await conn.query('UPDATE logs SET status = ? WHERE id = ?', [status, logId]);
     } finally {
         conn.release();
     }

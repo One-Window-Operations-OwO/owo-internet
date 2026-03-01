@@ -10,7 +10,8 @@ export async function POST(request: Request) {
             serial_number,
             user_id,
             rejections, // Record<string, string> -> main_cluster: sub_cluster_name
-            tanggal_bapp
+            tanggal_bapp,
+            status
         } = body;
 
         // basic validation
@@ -57,7 +58,8 @@ export async function POST(request: Request) {
             serial_number,
             Number(user_id),
             clusterValues,
-            tanggal_bapp
+            tanggal_bapp,
+            status
         );
 
         return NextResponse.json({ success: true, data: { log_id: logId } });
