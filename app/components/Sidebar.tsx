@@ -1,466 +1,566 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Cluster } from "../owo/page";
 import ProcessStatusLight, { ProcessStatus } from "./ProcessStatusLight";
 
 interface RadioOptionProps {
-    label: string;
-    checked: boolean;
-    onClick: () => void;
-    onDoubleClick: () => void;
-    isDanger?: boolean;
+  label: string;
+  checked: boolean;
+  onClick: () => void;
+  onDoubleClick: () => void;
+  isDanger?: boolean;
 }
 
-const RadioOption = ({ label, checked, onClick, onDoubleClick, isDanger }: RadioOptionProps) => (
-    <button
-        type="button"
-        onClick={onClick}
-        onDoubleClick={(e) => {
-            e.preventDefault();
-            onDoubleClick();
-        }}
-        className={`px-3 py-1 text-xs rounded-full border transition-colors mb-1 mr-1
-            ${checked
+const RadioOption = ({
+  label,
+  checked,
+  onClick,
+  onDoubleClick,
+  isDanger,
+}: RadioOptionProps) => (
+  <button
+    type="button"
+    onClick={onClick}
+    onDoubleClick={(e) => {
+      e.preventDefault();
+      onDoubleClick();
+    }}
+    className={`px-3 py-1 text-xs rounded-full border transition-colors mb-1 mr-1
+            ${
+              checked
                 ? isDanger
-                    ? "bg-red-600 border-red-600 text-white font-semibold"
-                    : "bg-blue-500 border-blue-500 text-white font-semibold"
+                  ? "bg-red-600 border-red-600 text-white font-semibold"
+                  : "bg-blue-500 border-blue-500 text-white font-semibold"
                 : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
             }`}
-    >
-        {label}
-    </button>
+  >
+    {label}
+  </button>
 );
 
 interface SidebarProps {
-    currentIndex: number;
-    totalItems: number;
-    clusters: Cluster[];
-    selectedRejections: Record<string, string>;
-    setSelectedRejections: (val: Record<string, string>) => void;
-    customReason: string;
-    setCustomReason: (val: string) => void;
-    onSubmit: () => void;
-    onSkip: () => void;
-    isSubmitting?: boolean;
-    processingStatus?: ProcessStatus;
-    errorMessage?: string;
-    onRetry?: () => void;
-    position: "left" | "right";
-    setPosition: (pos: "left" | "right") => void;
-    manualSerialNumber: string;
-    setManualSerialNumber: (val: string) => void;
-    currentCategory?: string;
-    lockedClusters?: string[];
-    isLoading?: boolean;
+  currentIndex: number;
+  totalItems: number;
+  clusters: Cluster[];
+  selectedRejections: Record<string, string>;
+  setSelectedRejections: (val: Record<string, string>) => void;
+  customReason: string;
+  setCustomReason: (val: string) => void;
+  onSubmit: () => void;
+  onSkip: () => void;
+  isSubmitting?: boolean;
+  processingStatus?: ProcessStatus;
+  errorMessage?: string;
+  onRetry?: () => void;
+  position: "left" | "right";
+  setPosition: (pos: "left" | "right") => void;
+  manualSerialNumber: string;
+  setManualSerialNumber: (val: string) => void;
+  currentCategory?: string;
+  lockedClusters?: string[];
+  isLoading?: boolean;
 }
 
 const CATEGORY_MAIN_CLUSTERS: Record<string, string[]> = {
-    'BAPP': ['BAPP', 'Serial Number BAPP', 'NPSN BAPP'],
-    'SERIAL_NUMBER': ['Serial Number Kardus', 'Geo Tagging'],
-    'CONNECTED_DEVICE': ['Perangkat Terhubung Internet',],
-    'PLANG_SEKOLAH': ['Foto Sekolah', 'Geo Tagging'],
-    'PENERIMA': ['Foto Box dan PIC', 'Geo Tagging'],
-    'UNBOXING': ['Kelengkapan Internet Satelit', 'Geo Tagging']
+  BAPP: ["BAPP", "Serial Number BAPP", "NPSN BAPP"],
+  SERIAL_NUMBER: ["Serial Number Kardus", "Geo Tagging"],
+  CONNECTED_DEVICE: ["Perangkat Terhubung Internet"],
+  PLANG_SEKOLAH: ["Foto Sekolah", "Geo Tagging"],
+  PENERIMA: ["Foto Box dan PIC", "Geo Tagging"],
+  UNBOXING: ["Kelengkapan Internet Satelit", "Geo Tagging"],
 };
 
 export default function Sidebar({
-    currentIndex,
-    totalItems,
-    clusters,
-    selectedRejections,
-    setSelectedRejections,
-    customReason,
-    setCustomReason,
-    onSubmit,
-    onSkip,
-    isSubmitting = false,
-    processingStatus = "idle",
-    errorMessage = "",
-    onRetry,
-    position,
-    setPosition,
-    manualSerialNumber,
-    setManualSerialNumber,
-    currentCategory,
-    lockedClusters = [],
-    isLoading = false,
+  currentIndex,
+  totalItems,
+  clusters,
+  selectedRejections,
+  setSelectedRejections,
+  customReason,
+  setCustomReason,
+  onSubmit,
+  onSkip,
+  isSubmitting = false,
+  processingStatus = "idle",
+  errorMessage = "",
+  onRetry,
+  position,
+  setPosition,
+  manualSerialNumber,
+  setManualSerialNumber,
+  currentCategory,
+  lockedClusters = [],
+  isLoading = false,
 }: SidebarProps) {
-    const hasRejections = Object.keys(selectedRejections).length > 0 || !!customReason;
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [filterMode, setFilterMode] = useState<'all' | 'filtered'>('filtered');
-    const [inputType, setInputType] = useState<'button' | 'select'>('button');
-    const [showRemaining, setShowRemaining] = useState(true);
+  const hasRejections =
+    Object.keys(selectedRejections).length > 0 || !!customReason;
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [filterMode, setFilterMode] = useState<"all" | "filtered">("filtered");
+  const [inputType, setInputType] = useState<"button" | "select">("button");
 
-    // Check if "Serial Number BAPP" is rejected
-    const isSerialNumberMismatch = Object.entries(selectedRejections).some(([main, sub]) =>
-        main === 'Serial Number BAPP' && Boolean(sub)
-    );
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebarInputType") as
+      | "button"
+      | "select";
+    if (saved) setInputType(saved);
+  }, []);
 
-    // Group clusters by main_cluster
-    const grouped = clusters.reduce((acc, cluster) => {
-        if (!acc[cluster.main_cluster]) acc[cluster.main_cluster] = [];
-        acc[cluster.main_cluster].push(cluster);
-        return acc;
-    }, {} as Record<string, Cluster[]>);
+  const handleChangeInputType = (type: "button" | "select") => {
+    setInputType(type);
+    localStorage.setItem("sidebarInputType", type);
+  };
+  const [showRemaining, setShowRemaining] = useState(true);
 
-    // Filter clusters based on mode and category
-    const filteredGrouped = Object.entries(grouped).reduce((acc, [mainCluster, items]) => {
-        if (filterMode === 'all') {
+  // Check if "Serial Number BAPP" is rejected
+  const isSerialNumberMismatch = Object.entries(selectedRejections).some(
+    ([main, sub]) => main === "Serial Number BAPP" && Boolean(sub),
+  );
+
+  // Group clusters by main_cluster
+  const grouped = clusters.reduce(
+    (acc, cluster) => {
+      if (!acc[cluster.main_cluster]) acc[cluster.main_cluster] = [];
+      acc[cluster.main_cluster].push(cluster);
+      return acc;
+    },
+    {} as Record<string, Cluster[]>,
+  );
+
+  // Filter clusters based on mode and category
+  const filteredGrouped = Object.entries(grouped).reduce(
+    (acc, [mainCluster, items]) => {
+      if (filterMode === "all") {
+        acc[mainCluster] = items;
+      } else {
+        // Filtered mode
+        const allowedClusters = currentCategory
+          ? CATEGORY_MAIN_CLUSTERS[currentCategory]
+          : undefined;
+        if (allowedClusters) {
+          if (allowedClusters.includes(mainCluster)) {
             acc[mainCluster] = items;
+          }
         } else {
-            // Filtered mode
-            const allowedClusters = currentCategory ? CATEGORY_MAIN_CLUSTERS[currentCategory] : undefined;
-            if (allowedClusters) {
-                if (allowedClusters.includes(mainCluster)) {
-                    acc[mainCluster] = items;
-                }
-            } else {
-                // If no category or unknown category, show everything (or maybe handling default behavior)
-                // For now, if no match found in map, let's show all to be safe, or strictly nothing?
-                // Requirement says "ketika filtered tambahkan ketentuan...".
-                // If category is not in the map, and we are in filtered mode, maybe we should default to ALL?
-                // Let's default to ALL if category is not recognized in the map.
-                acc[mainCluster] = items;
-            }
+          // If no category or unknown category, show everything (or maybe handling default behavior)
+          // For now, if no match found in map, let's show all to be safe, or strictly nothing?
+          // Requirement says "ketika filtered tambahkan ketentuan...".
+          // If category is not in the map, and we are in filtered mode, maybe we should default to ALL?
+          // Let's default to ALL if category is not recognized in the map.
+          acc[mainCluster] = items;
         }
-        return acc;
-    }, {} as Record<string, Cluster[]>);
+      }
+      return acc;
+    },
+    {} as Record<string, Cluster[]>,
+  );
 
-    // Safety check: if filtered result is empty but we have clusters, maybe show all? 
-    // actually if specific category is selected but yields no clusters (unlikely given the map), it will be empty.
-    // However, if currentCategory is defined AND present in map, we use strict filtering.
-    // Let's refine the reduce above.
+  // Safety check: if filtered result is empty but we have clusters, maybe show all?
+  // actually if specific category is selected but yields no clusters (unlikely given the map), it will be empty.
+  // However, if currentCategory is defined AND present in map, we use strict filtering.
+  // Let's refine the reduce above.
 
-    const finalGrouped = (() => {
-        if (filterMode === 'all') return grouped;
-        if (!currentCategory || !CATEGORY_MAIN_CLUSTERS[currentCategory]) return grouped;
+  const finalGrouped = (() => {
+    if (filterMode === "all") return grouped;
+    if (!currentCategory || !CATEGORY_MAIN_CLUSTERS[currentCategory])
+      return grouped;
 
-        const allowed = CATEGORY_MAIN_CLUSTERS[currentCategory];
-        const filtered: Record<string, Cluster[]> = {};
+    const allowed = CATEGORY_MAIN_CLUSTERS[currentCategory];
+    const filtered: Record<string, Cluster[]> = {};
 
-        Object.entries(grouped).forEach(([key, val]) => {
-            if (allowed.includes(key)) {
-                filtered[key] = val;
-            }
-        });
-        return filtered;
-    })();
+    Object.entries(grouped).forEach(([key, val]) => {
+      if (allowed.includes(key)) {
+        filtered[key] = val;
+      }
+    });
+    return filtered;
+  })();
 
+  const handleSelect = (mainCluster: string, subCluster: string) => {
+    const newRejections = { ...selectedRejections, [mainCluster]: subCluster };
+    setSelectedRejections(newRejections);
+    setCustomReason(
+      Array.from(new Set(Object.values(newRejections))).join("; "),
+    );
+  };
 
-    const handleSelect = (mainCluster: string, subCluster: string) => {
-        const newRejections = { ...selectedRejections, [mainCluster]: subCluster };
-        setSelectedRejections(newRejections);
-        setCustomReason(Array.from(new Set(Object.values(newRejections))).join('; '));
-    };
+  const handleDeselect = (mainCluster: string) => {
+    const newRejections = { ...selectedRejections };
+    delete newRejections[mainCluster];
+    setSelectedRejections(newRejections);
+    setCustomReason(
+      Array.from(new Set(Object.values(newRejections))).join("; "),
+    );
+  };
 
-    const handleDeselect = (mainCluster: string) => {
-        const newRejections = { ...selectedRejections };
-        delete newRejections[mainCluster];
-        setSelectedRejections(newRejections);
-        setCustomReason(Array.from(new Set(Object.values(newRejections))).join('; '));
-    };
+  const mainButtonLabel = hasRejections ? "REJECT" : "VERIFY";
+  const mainButtonColor = hasRejections
+    ? "bg-red-600 hover:bg-red-500"
+    : "bg-green-600 hover:bg-green-500";
 
-    const mainButtonLabel = hasRejections ? "REJECT" : "VERIFY";
-    const mainButtonColor = hasRejections
-        ? "bg-red-600 hover:bg-red-500"
-        : "bg-green-600 hover:bg-green-500";
+  return (
+    <aside className="w-96 bg-gray-800 text-white flex-shrink-0 flex flex-col p-4 h-full overflow-hidden border-r border-gray-700 relative">
+      {/* Process Status Light */}
+      <div className="mb-4">
+        <ProcessStatusLight
+          status={processingStatus}
+          errorMessage={errorMessage}
+          onRetry={onRetry}
+        />
+      </div>
 
-    return (
-        <aside className="w-96 bg-gray-800 text-white flex-shrink-0 flex flex-col p-4 h-full overflow-hidden border-r border-gray-700 relative">
-            {/* Process Status Light */}
-            <div className="mb-4">
-                <ProcessStatusLight
-                    status={processingStatus}
-                    errorMessage={errorMessage}
-                    onRetry={onRetry}
-                />
-            </div>
+      {/* Conditional Serial Number Input */}
+      {isSerialNumberMismatch && (
+        <div className="mb-4 flex-shrink-0">
+          <label className="text-xs font-semibold text-yellow-500 uppercase tracking-wider block mb-1">
+            Input Serial Number (Manual)
+          </label>
+          <input
+            type="text"
+            className="block w-full rounded-md bg-gray-900 border border-yellow-500 py-1.5 px-2 text-white placeholder:text-gray-500 focus:outline-none focus:border-yellow-400 text-xs leading-5"
+            placeholder="Enter correct SN..."
+            value={manualSerialNumber}
+            onChange={(e) => setManualSerialNumber(e.target.value)}
+          />
+        </div>
+      )}
 
+      {/* Filter Toggle */}
+      <div className="flex bg-gray-700 p-0.5 rounded-lg mb-4 flex-shrink-0">
+        <button
+          onClick={() => setFilterMode("filtered")}
+          className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${
+            filterMode === "filtered"
+              ? "bg-blue-600 text-white shadow-sm"
+              : "text-gray-400 hover:text-white hover:bg-gray-600"
+          }`}
+        >
+          Filtered
+        </button>
+        <button
+          onClick={() => setFilterMode("all")}
+          className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${
+            filterMode === "all"
+              ? "bg-blue-600 text-white shadow-sm"
+              : "text-gray-400 hover:text-white hover:bg-gray-600"
+          }`}
+        >
+          All
+        </button>
+      </div>
 
-
-
-
-            {/* Conditional Serial Number Input */}
-            {isSerialNumberMismatch && (
-                <div className="mb-4 flex-shrink-0">
-                    <label className="text-xs font-semibold text-yellow-500 uppercase tracking-wider block mb-1">
-                        Input Serial Number (Manual)
-                    </label>
-                    <input
-                        type="text"
-                        className="block w-full rounded-md bg-gray-900 border border-yellow-500 py-1.5 px-2 text-white placeholder:text-gray-500 focus:outline-none focus:border-yellow-400 text-xs leading-5"
-                        placeholder="Enter correct SN..."
-                        value={manualSerialNumber}
-                        onChange={(e) => setManualSerialNumber(e.target.value)}
-                    />
-                </div>
-            )}
-
-            {/* Filter Toggle */}
-            <div className="flex bg-gray-700 p-0.5 rounded-lg mb-4 flex-shrink-0">
-                <button
-                    onClick={() => setFilterMode('filtered')}
-                    className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${filterMode === 'filtered'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-400 hover:text-white hover:bg-gray-600'
-                        }`}
-                >
-                    Filtered
-                </button>
-                <button
-                    onClick={() => setFilterMode('all')}
-                    className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${filterMode === 'all'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-400 hover:text-white hover:bg-gray-600'
-                        }`}
-                >
-                    All
-                </button>
-            </div>
-
-
-            {/* Clusters / Rejection Options (Scrollable) */}
-            <div className="flex-grow overflow-y-auto custom-scrollbar">
-                {Object.keys(grouped).length === 0 ? (
-                    <div className="text-gray-500 text-sm text-center mt-10">
-                        Loading options...
-                    </div>
-                ) : (
-                    <div className="flex flex-col gap-2">
-                        {Object.entries(finalGrouped).map(([mainCluster, items]) => (
-                            <div key={mainCluster} className="text-left text-xs">
-                                <label className="font-semibold text-gray-300 block mb-1">
-                                    {mainCluster}
-                                </label>
-                                <div className="flex flex-wrap gap-1">
-                                    {inputType === 'select' ? (
-                                        <select
-                                            className={`w-full text-xs rounded px-2 py-1 focus:outline-none transition-colors border
-                                                ${selectedRejections[mainCluster]
+      {/* Clusters / Rejection Options (Scrollable) */}
+      <div className="flex-grow overflow-y-auto custom-scrollbar">
+        {Object.keys(grouped).length === 0 ? (
+          <div className="text-gray-500 text-sm text-center mt-10">
+            Loading options...
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {Object.entries(finalGrouped).map(([mainCluster, items]) => (
+              <div key={mainCluster} className="text-left text-xs">
+                <label className="font-semibold text-gray-300 block mb-1">
+                  {mainCluster}
+                </label>
+                <div className="flex flex-wrap gap-1">
+                  {inputType === "select" ? (
+                    <select
+                      className={`w-full text-xs rounded px-2 py-1 focus:outline-none transition-colors border
+                                                ${
+                                                  selectedRejections[
+                                                    mainCluster
+                                                  ]
                                                     ? "bg-red-600 border-red-600 text-white font-semibold focus:border-red-400"
                                                     : "bg-gray-900 border-gray-600 text-white focus:border-blue-500"
                                                 }`}
-                                            value={selectedRejections[mainCluster] || ""}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                if (val) {
-                                                    handleSelect(mainCluster, val);
-                                                } else {
-                                                    handleDeselect(mainCluster);
-                                                }
-                                            }}
-                                        >
-                                            <option value="" className="bg-gray-900 text-white">Sesuai</option>
-                                            {items.map(item => (
-                                                <option key={item.id} value={item.sub_cluster} className="bg-gray-900 text-white">
-                                                    {item.nama_opsi}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    ) : (
-                                        <>
-                                            {/* Default "Sesuai" button */}
-                                            <button
-                                                type="button"
-                                                onClick={() => !lockedClusters.includes(mainCluster) && handleDeselect(mainCluster)}
-                                                className={`px-3 py-1 text-xs rounded-full border transition-colors mb-1 mr-1
-                                                        ${!selectedRejections[mainCluster]
-                                                        ? "bg-green-600 border-green-600 text-white font-semibold"
-                                                        : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
-                                                    } ${lockedClusters.includes(mainCluster) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                disabled={lockedClusters.includes(mainCluster)}
-                                            >
-                                                Sesuai
-                                            </button>
-                                            {items.map(item => {
-                                                const isLocked = lockedClusters.includes(mainCluster);
-                                                const isSelected = selectedRejections[mainCluster] === item.sub_cluster;
+                      value={selectedRejections[mainCluster] || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val) {
+                          handleSelect(mainCluster, val);
+                        } else {
+                          handleDeselect(mainCluster);
+                        }
+                      }}
+                    >
+                      <option value="" className="bg-gray-900 text-white">
+                        Sesuai
+                      </option>
+                      {items.map((item) => (
+                        <option
+                          key={item.id}
+                          value={item.sub_cluster}
+                          className="bg-gray-900 text-white"
+                        >
+                          {item.nama_opsi}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <>
+                      {/* Default "Sesuai" button */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          !lockedClusters.includes(mainCluster) &&
+                          handleDeselect(mainCluster)
+                        }
+                        className={`px-3 py-1 text-xs rounded-full border transition-colors mb-1 mr-1
+                                                        ${
+                                                          !selectedRejections[
+                                                            mainCluster
+                                                          ]
+                                                            ? "bg-green-600 border-green-600 text-white font-semibold"
+                                                            : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
+                                                        } ${lockedClusters.includes(mainCluster) ? "opacity-50 cursor-not-allowed" : ""}`}
+                        disabled={lockedClusters.includes(mainCluster)}
+                      >
+                        Sesuai
+                      </button>
+                      {items.map((item) => {
+                        const isLocked = lockedClusters.includes(mainCluster);
+                        const isSelected =
+                          selectedRejections[mainCluster] === item.sub_cluster;
 
-                                                return (
-                                                    <div key={item.id} className={`${isLocked ? 'pointer-events-none' : ''} ${isLocked && !isSelected ? 'opacity-40 grayscale' : ''}`}>
-                                                        <RadioOption
-                                                            label={item.nama_opsi}
-                                                            checked={isSelected}
-                                                            onClick={() => !isLocked && handleSelect(mainCluster, item.sub_cluster)}
-                                                            onDoubleClick={() => !isLocked && handleDeselect(mainCluster)}
-                                                            isDanger
-                                                        />
-                                                    </div>
-                                                );
-                                            })}
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                        {Object.keys(finalGrouped).length === 0 && filterMode === 'filtered' && (
-                            <div className="text-gray-500 text-xs text-center py-4 italic">
-                                No specific clusters for this category. Switch to 'All' to see available options.
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
+                        return (
+                          <div
+                            key={item.id}
+                            className={`${isLocked ? "pointer-events-none" : ""} ${isLocked && !isSelected ? "opacity-40 grayscale" : ""}`}
+                          >
+                            <RadioOption
+                              label={item.nama_opsi}
+                              checked={isSelected}
+                              onClick={() =>
+                                !isLocked &&
+                                handleSelect(mainCluster, item.sub_cluster)
+                              }
+                              onDoubleClick={() =>
+                                !isLocked && handleDeselect(mainCluster)
+                              }
+                              isDanger
+                            />
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+            {Object.keys(finalGrouped).length === 0 &&
+              filterMode === "filtered" && (
+                <div className="text-gray-500 text-xs text-center py-4 italic">
+                  No specific clusters for this category. Switch to 'All' to see
+                  available options.
+                </div>
+              )}
+          </div>
+        )}
+      </div>
 
-            {/* Footer Actions */}
-            <div className="border-t border-gray-700 pt-3 mt-2 flex-shrink-0">
-                {/* Rejection Reason Textarea */}
-                <div className="mb-4 flex-shrink-0">
-                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
-                        Rejection Reason
+      {/* Footer Actions */}
+      <div className="border-t border-gray-700 pt-3 mt-2 flex-shrink-0">
+        {/* Rejection Reason Textarea */}
+        <div className="mb-4 flex-shrink-0">
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+            Rejection Reason
+          </label>
+          <textarea
+            rows={3}
+            className="block w-full rounded-md bg-gray-900 border border-gray-600 py-1.5 px-2 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500 text-xs leading-5"
+            placeholder="Select below or type..."
+            value={customReason}
+            onChange={(e) => setCustomReason(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+        </div>
+        {/* Compact Info Row */}
+        <div className="flex items-center justify-between mb-3 bg-gray-900/50 p-2 rounded border border-gray-700">
+          <div className="flex items-center gap-2 select-none">
+            <span className="text-xs text-gray-400">Sisa :</span>
+            <span className="text-sm font-bold text-white min-w-[30px]">
+              {showRemaining ? Math.max(0, totalItems - currentIndex) : "•••"}
+            </span>
+            <button
+              onClick={() => setShowRemaining(!showRemaining)}
+              className="p-1 text-gray-500 hover:text-white transition-colors focus:outline-none"
+              title={showRemaining ? "Sembunyikan sisa" : "Tampilkan sisa"}
+            >
+              {showRemaining ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              )}
+            </button>
+          </div>
+
+          {/* Options Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-1 hover:bg-gray-700 rounded-full transition-colors focus:outline-none text-gray-400 hover:text-white"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="12" cy="5" r="1" />
+                <circle cx="12" cy="19" r="1" />
+              </svg>
+            </button>
+
+            {/* Options Dropdown */}
+            {isMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsMenuOpen(false)}
+                ></div>
+                <div className="absolute right-0 bottom-full mb-2 w-64 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 p-4">
+                  {/* Layout Toggle */}
+                  <div className="mb-4">
+                    <label className="text-xs font-bold text-gray-400 block mb-2">
+                      Layout Position
                     </label>
-                    <textarea
-                        rows={3}
-                        className="block w-full rounded-md bg-gray-900 border border-gray-600 py-1.5 px-2 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500 text-xs leading-5"
-                        placeholder="Select below or type..."
-                        value={customReason}
-                        onChange={(e) => setCustomReason(e.target.value)}
-                        onKeyDown={(e) => e.stopPropagation()}
-                    />
-                </div>
-                {/* Compact Info Row */}
-                <div className="flex items-center justify-between mb-3 bg-gray-900/50 p-2 rounded border border-gray-700">
-                    <div className="flex items-center gap-2 select-none">
-                        <span className="text-xs text-gray-400">Sisa :</span>
-                        <span className="text-sm font-bold text-white min-w-[30px]">
-                            {showRemaining ? Math.max(0, totalItems - currentIndex) : "•••"}
-                        </span>
-                        <button
-                            onClick={() => setShowRemaining(!showRemaining)}
-                            className="p-1 text-gray-500 hover:text-white transition-colors focus:outline-none"
-                            title={showRemaining ? "Sembunyikan sisa" : "Tampilkan sisa"}
-                        >
-                            {showRemaining ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                                    <line x1="1" y1="1" x2="23" y2="23" />
-                                </svg>
-                            ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                    <circle cx="12" cy="12" r="3" />
-                                </svg>
-                            )}
-                        </button>
+                    <div className="flex bg-gray-900 p-1 rounded border border-gray-600">
+                      <button
+                        onClick={() => setPosition("left")}
+                        className={`flex-1 py-1 text-xs rounded transition-all ${
+                          position === "left"
+                            ? "bg-blue-600 text-white"
+                            : "text-gray-400 hover:text-gray-200"
+                        }`}
+                      >
+                        Left
+                      </button>
+                      <button
+                        onClick={() => setPosition("right")}
+                        className={`flex-1 py-1 text-xs rounded transition-all ${
+                          position === "right"
+                            ? "bg-blue-600 text-white"
+                            : "text-gray-400 hover:text-gray-200"
+                        }`}
+                      >
+                        Right
+                      </button>
                     </div>
+                  </div>
 
-                    {/* Options Menu */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            className="p-1 hover:bg-gray-700 rounded-full transition-colors focus:outline-none text-gray-400 hover:text-white"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="1" />
-                                <circle cx="12" cy="5" r="1" />
-                                <circle cx="12" cy="19" r="1" />
-                            </svg>
-                        </button>
-
-                        {/* Options Dropdown */}
-                        {isMenuOpen && (
-                            <>
-                                <div className="fixed inset-0 z-40" onClick={() => setIsMenuOpen(false)}></div>
-                                <div className="absolute right-0 bottom-full mb-2 w-64 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 p-4">
-                                    {/* Layout Toggle */}
-                                    <div className="mb-4">
-                                        <label className="text-xs font-bold text-gray-400 block mb-2">
-                                            Layout Position
-                                        </label>
-                                        <div className="flex bg-gray-900 p-1 rounded border border-gray-600">
-                                            <button
-                                                onClick={() => setPosition("left")}
-                                                className={`flex-1 py-1 text-xs rounded transition-all ${position === "left"
-                                                    ? "bg-blue-600 text-white"
-                                                    : "text-gray-400 hover:text-gray-200"
-                                                    }`}
-                                            >
-                                                Left
-                                            </button>
-                                            <button
-                                                onClick={() => setPosition("right")}
-                                                className={`flex-1 py-1 text-xs rounded transition-all ${position === "right"
-                                                    ? "bg-blue-600 text-white"
-                                                    : "text-gray-400 hover:text-gray-200"
-                                                    }`}
-                                            >
-                                                Right
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Input Type Toggle */}
-                                    <div className="mb-4">
-                                        <label className="text-xs font-bold text-gray-400 block mb-2">
-                                            Input Style
-                                        </label>
-                                        <div className="flex bg-gray-900 p-1 rounded border border-gray-600">
-                                            <button
-                                                onClick={() => setInputType("button")}
-                                                className={`flex-1 py-1 text-xs rounded transition-all ${inputType === "button"
-                                                    ? "bg-blue-600 text-white"
-                                                    : "text-gray-400 hover:text-gray-200"
-                                                    }`}
-                                            >
-                                                Button
-                                            </button>
-                                            <button
-                                                onClick={() => setInputType("select")}
-                                                className={`flex-1 py-1 text-xs rounded transition-all ${inputType === "select"
-                                                    ? "bg-blue-600 text-white"
-                                                    : "text-gray-400 hover:text-gray-200"
-                                                    }`}
-                                            >
-                                                Select
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Logout Button */}
-                                    <button
-                                        onClick={() => {
-                                            if (confirm("Are you sure you want to logout? This will clear all local session data.")) {
-                                                localStorage.clear();
-                                                window.location.reload();
-                                            }
-                                        }}
-                                        className="w-full p-2 bg-red-700/20 hover:bg-red-900/40 text-red-300 hover:text-red-200 text-xs rounded border border-red-800/50 hover:border-red-700 transition-colors"
-                                    >
-                                        LOGOUT & CLEAR DATA
-                                    </button>
-                                </div>
-                            </>
-                        )}
+                  {/* Input Type Toggle */}
+                  <div className="mb-4">
+                    <label className="text-xs font-bold text-gray-400 block mb-2">
+                      Input Style
+                    </label>
+                    <div className="flex bg-gray-900 p-1 rounded border border-gray-600">
+                      <button
+                        onClick={() => handleChangeInputType("button")}
+                        className={`flex-1 py-1 text-xs rounded transition-all ${
+                          inputType === "button"
+                            ? "bg-blue-600 text-white"
+                            : "text-gray-400 hover:text-gray-200"
+                        }`}
+                      >
+                        Button
+                      </button>
+                      <button
+                        onClick={() => handleChangeInputType("select")}
+                        className={`flex-1 py-1 text-xs rounded transition-all ${
+                          inputType === "select"
+                            ? "bg-blue-600 text-white"
+                            : "text-gray-400 hover:text-gray-200"
+                        }`}
+                      >
+                        Select
+                      </button>
                     </div>
-                </div>
+                  </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-2">
-                    <button
-                        onClick={onSkip}
-                        disabled={isSubmitting || processingStatus === 'success' || isLoading}
-                        className={`flex-1 p-3 bg-gray-500 rounded-md text-white font-bold hover:bg-gray-400 disabled:opacity-50 transition-colors ${(isSubmitting || processingStatus === 'success' || isLoading) ? "cursor-not-allowed opacity-50" : ""} ${isSubmitting ? "animate-pulse" : ""}`}
-                    >
-                        {isSubmitting ? (
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent mx-auto"></div>
-                        ) : (
-                            "SKIP"
-                        )}
-                    </button>
-                    <button
-                        onClick={onSubmit}
-                        disabled={isSubmitting || processingStatus === 'success' || isLoading}
-                        className={`flex-1 p-3 rounded-md text-white font-bold disabled:opacity-50 transition-colors ${mainButtonColor} ${(isSubmitting || processingStatus === 'success' || isLoading) ? "cursor-not-allowed opacity-50" : ""} ${isSubmitting ? "animate-pulse" : ""}`}
-                    >
-                        {isSubmitting ? (
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent mx-auto"></div>
-                        ) : (
-                            mainButtonLabel
-                        )}
-                    </button>
+                  {/* Logout Button */}
+                  <button
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "Are you sure you want to logout? This will clear all local session data.",
+                        )
+                      ) {
+                        localStorage.clear();
+                        window.location.reload();
+                      }
+                    }}
+                    className="w-full p-2 bg-red-700/20 hover:bg-red-900/40 text-red-300 hover:text-red-200 text-xs rounded border border-red-800/50 hover:border-red-700 transition-colors"
+                  >
+                    LOGOUT & CLEAR DATA
+                  </button>
                 </div>
-            </div>
-        </aside>
-    );
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={onSkip}
+            disabled={
+              isSubmitting || processingStatus === "success" || isLoading
+            }
+            className={`flex-1 p-3 bg-gray-500 rounded-md text-white font-bold hover:bg-gray-400 disabled:opacity-50 transition-colors ${isSubmitting || processingStatus === "success" || isLoading ? "cursor-not-allowed opacity-50" : ""} ${isSubmitting ? "animate-pulse" : ""}`}
+          >
+            {isSubmitting ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent mx-auto"></div>
+            ) : (
+              "SKIP"
+            )}
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={
+              isSubmitting || processingStatus === "success" || isLoading
+            }
+            className={`flex-1 p-3 rounded-md text-white font-bold disabled:opacity-50 transition-colors ${mainButtonColor} ${isSubmitting || processingStatus === "success" || isLoading ? "cursor-not-allowed opacity-50" : ""} ${isSubmitting ? "animate-pulse" : ""}`}
+          >
+            {isSubmitting ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent mx-auto"></div>
+            ) : (
+              mainButtonLabel
+            )}
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
 }
