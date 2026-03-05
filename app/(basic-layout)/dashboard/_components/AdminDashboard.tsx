@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import RejectionStatsDrawer from "./RejectionStatsDrawer";
 
 interface UserKpi {
   id: number;
@@ -28,6 +29,8 @@ export default function AdminDashboard() {
     verifikasi_ditolak: "-",
     user_kpis: [],
   });
+
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const { user } = useAuth();
   const isLocalFallback = !user?.scope;
@@ -161,6 +164,15 @@ export default function AdminDashboard() {
           <p className="mt-2 text-3xl font-bold text-red-600 dark:text-red-500">
             {data.verifikasi_ditolak}
           </p>
+          <button
+            onClick={() => setIsDrawerOpen(true)}
+            className="mt-3 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1 group transition-colors"
+          >
+            Lihat Detail
+            <svg className="w-3 h-3 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -290,10 +302,10 @@ export default function AdminDashboard() {
                           <span className="text-xs text-neutral-400">
                             {kpi.total_data > 0
                               ? (
-                                  ((kpi.verifikasi_selesai || 0) /
-                                    kpi.total_data) *
-                                  100
-                                ).toFixed(1)
+                                ((kpi.verifikasi_selesai || 0) /
+                                  kpi.total_data) *
+                                100
+                              ).toFixed(1)
                               : 0}
                             %
                           </span>
@@ -307,9 +319,9 @@ export default function AdminDashboard() {
                           <span className="text-xs text-neutral-400">
                             {kpi.total_data > 0
                               ? (
-                                  ((sudahDikerjakan || 0) / kpi.total_data) *
-                                  100
-                                ).toFixed(1)
+                                ((sudahDikerjakan || 0) / kpi.total_data) *
+                                100
+                              ).toFixed(1)
                               : 0}
                             %
                           </span>
@@ -326,19 +338,23 @@ export default function AdminDashboard() {
                   kpi.name &&
                   kpi.name.toLowerCase().includes(searchTerm.toLowerCase()),
               ).length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-6 py-8 text-center text-sm text-neutral-500 dark:text-zinc-400"
-                  >
-                    Tidak ada data KPI user yang ditemukan.
-                  </td>
-                </tr>
-              )}
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-6 py-8 text-center text-sm text-neutral-500 dark:text-zinc-400"
+                    >
+                      Tidak ada data KPI user yang ditemukan.
+                    </td>
+                  </tr>
+                )}
             </tbody>
           </table>
         </div>
       </div>
+      <RejectionStatsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+      />
     </div>
   );
 }

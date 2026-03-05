@@ -174,3 +174,69 @@ export async function updateLogStatus(logId: number, status: string) {
         conn.release();
     }
 }
+
+export interface RejectionSubCluster {
+    sub_cluster: string;
+    count: number;
+}
+
+export interface RejectionMainCluster {
+    main_cluster: string;
+    total: number;
+    sub_clusters: RejectionSubCluster[];
+}
+
+/**
+ * Counts rejections grouped by main_cluster and sub_cluster.
+ * Each of the 10 cluster FK columns in the logs table is UNIONed together,
+ * then joined with the cluster table to get human-readable names.
+ */
+export async function getRejectionStats(): Promise<RejectionMainCluster[]> {
+    const conn = await pool.getConnection();
+    try {
+        const query = `
+            SELECT c.main_cluster, c.sub_cluster, COUNT(*) as count
+            FROM (
+                SELECT geo_tagging          AS cluster_id FROM logs WHERE status = 'REJECTED' AND geo_tagging IS NOT NULL
+                UNION ALL
+                SELECT foto_sekolah          AS cluster_id FROM logs WHERE status = 'REJECTED' AND foto_sekolah IS NOT NULL
+                UNION ALL
+                SELECT foto_box_dan_pic      AS cluster_id FROM logs WHERE status = 'REJECTED' AND foto_box_dan_pic IS NOT NULL
+                UNION ALL
+                SELECT kelengkapan_unit      AS cluster_id FROM logs WHERE status = 'REJECTED' AND kelengkapan_unit IS NOT NULL
+                UNION ALL
+                SELECT foto_serial_number_kardus AS cluster_id FROM logs WHERE status = 'REJECTED' AND foto_serial_number_kardus IS NOT NULL
+                UNION ALL
+                SELECT serial_number_bapp    AS cluster_id FROM logs WHERE status = 'REJECTED' AND serial_number_bapp IS NOT NULL
+                UNION ALL
+                SELECT perangkat_terhubung_internet AS cluster_id FROM logs WHERE status = 'REJECTED' AND perangkat_terhubung_internet IS NOT NULL
+                UNION ALL
+                SELECT bapp                  AS cluster_id FROM logs WHERE status = 'REJECTED' AND bapp IS NOT NULL
+                UNION ALL
+                SELECT skylink_web           AS cluster_id FROM logs WHERE status = 'REJECTED' AND skylink_web IS NOT NULL
+                UNION ALL
+                SELECT npsn_bapp             AS cluster_id FROM logs WHERE status = 'REJECTED' AND npsn_bapp IS NOT NULL
+            ) AS all_rejections
+            JOIN cluster c ON c.id = all_rejections.cluster_id
+            GROUP BY c.main_cluster, c.sub_cluster
+            ORDER BY c.main_cluster, count DESC
+        `;
+        const [rows]: any = await conn.query(query);
+
+        // Group flat rows into nested structure
+        const map = new Map<string, RejectionMainCluster>();
+        for (const row of rows) {
+            if (!map.has(row.main_cluster)) {
+                map.set(row.main_cluster, { main_cluster: row.main_cluster, total: 0, sub_clusters: [] });
+            }
+            const entry = map.get(row.main_cluster)!;
+            entry.total += Number(row.count);
+            entry.sub_clusters.push({ sub_cluster: row.sub_cluster, count: Number(row.count) });
+        }
+
+        // Sort by total desc
+        return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    } finally {
+        conn.release();
+    }
+}
