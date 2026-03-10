@@ -197,25 +197,25 @@ export async function getRejectionStats(): Promise<RejectionMainCluster[]> {
         const query = `
             SELECT c.main_cluster, c.sub_cluster, COUNT(*) as count
             FROM (
-                SELECT geo_tagging          AS cluster_id FROM logs WHERE status = 'REJECTED' AND geo_tagging IS NOT NULL
+                SELECT geo_tagging AS cluster_id FROM logs l JOIN cutoff cut ON l.cutoff_id = cut.id WHERE l.status = 'REJECTED' AND geo_tagging IS NOT NULL AND l.id IN (SELECT MAX(l2.id) FROM logs l2 JOIN cutoff cut2 ON l2.cutoff_id = cut2.id GROUP BY cut2.npsn)
                 UNION ALL
-                SELECT foto_sekolah          AS cluster_id FROM logs WHERE status = 'REJECTED' AND foto_sekolah IS NOT NULL
+                SELECT foto_sekolah AS cluster_id FROM logs l JOIN cutoff cut ON l.cutoff_id = cut.id WHERE l.status = 'REJECTED' AND foto_sekolah IS NOT NULL AND l.id IN (SELECT MAX(l2.id) FROM logs l2 JOIN cutoff cut2 ON l2.cutoff_id = cut2.id GROUP BY cut2.npsn)
                 UNION ALL
-                SELECT foto_box_dan_pic      AS cluster_id FROM logs WHERE status = 'REJECTED' AND foto_box_dan_pic IS NOT NULL
+                SELECT foto_box_dan_pic AS cluster_id FROM logs l JOIN cutoff cut ON l.cutoff_id = cut.id WHERE l.status = 'REJECTED' AND foto_box_dan_pic IS NOT NULL AND l.id IN (SELECT MAX(l2.id) FROM logs l2 JOIN cutoff cut2 ON l2.cutoff_id = cut2.id GROUP BY cut2.npsn)
                 UNION ALL
-                SELECT kelengkapan_unit      AS cluster_id FROM logs WHERE status = 'REJECTED' AND kelengkapan_unit IS NOT NULL
+                SELECT kelengkapan_unit AS cluster_id FROM logs l JOIN cutoff cut ON l.cutoff_id = cut.id WHERE l.status = 'REJECTED' AND kelengkapan_unit IS NOT NULL AND l.id IN (SELECT MAX(l2.id) FROM logs l2 JOIN cutoff cut2 ON l2.cutoff_id = cut2.id GROUP BY cut2.npsn)
                 UNION ALL
-                SELECT foto_serial_number_kardus AS cluster_id FROM logs WHERE status = 'REJECTED' AND foto_serial_number_kardus IS NOT NULL
+                SELECT foto_serial_number_kardus AS cluster_id FROM logs l JOIN cutoff cut ON l.cutoff_id = cut.id WHERE l.status = 'REJECTED' AND foto_serial_number_kardus IS NOT NULL AND l.id IN (SELECT MAX(l2.id) FROM logs l2 JOIN cutoff cut2 ON l2.cutoff_id = cut2.id GROUP BY cut2.npsn)
                 UNION ALL
-                SELECT serial_number_bapp    AS cluster_id FROM logs WHERE status = 'REJECTED' AND serial_number_bapp IS NOT NULL
+                SELECT serial_number_bapp AS cluster_id FROM logs l JOIN cutoff cut ON l.cutoff_id = cut.id WHERE l.status = 'REJECTED' AND serial_number_bapp IS NOT NULL AND l.id IN (SELECT MAX(l2.id) FROM logs l2 JOIN cutoff cut2 ON l2.cutoff_id = cut2.id GROUP BY cut2.npsn)
                 UNION ALL
-                SELECT perangkat_terhubung_internet AS cluster_id FROM logs WHERE status = 'REJECTED' AND perangkat_terhubung_internet IS NOT NULL
+                SELECT perangkat_terhubung_internet AS cluster_id FROM logs l JOIN cutoff cut ON l.cutoff_id = cut.id WHERE l.status = 'REJECTED' AND perangkat_terhubung_internet IS NOT NULL AND l.id IN (SELECT MAX(l2.id) FROM logs l2 JOIN cutoff cut2 ON l2.cutoff_id = cut2.id GROUP BY cut2.npsn)
                 UNION ALL
-                SELECT bapp                  AS cluster_id FROM logs WHERE status = 'REJECTED' AND bapp IS NOT NULL
+                SELECT bapp AS cluster_id FROM logs l JOIN cutoff cut ON l.cutoff_id = cut.id WHERE l.status = 'REJECTED' AND bapp IS NOT NULL AND l.id IN (SELECT MAX(l2.id) FROM logs l2 JOIN cutoff cut2 ON l2.cutoff_id = cut2.id GROUP BY cut2.npsn)
                 UNION ALL
-                SELECT skylink_web           AS cluster_id FROM logs WHERE status = 'REJECTED' AND skylink_web IS NOT NULL
+                SELECT skylink_web AS cluster_id FROM logs l JOIN cutoff cut ON l.cutoff_id = cut.id WHERE l.status = 'REJECTED' AND skylink_web IS NOT NULL AND l.id IN (SELECT MAX(l2.id) FROM logs l2 JOIN cutoff cut2 ON l2.cutoff_id = cut2.id GROUP BY cut2.npsn)
                 UNION ALL
-                SELECT npsn_bapp             AS cluster_id FROM logs WHERE status = 'REJECTED' AND npsn_bapp IS NOT NULL
+                SELECT npsn_bapp AS cluster_id FROM logs l JOIN cutoff cut ON l.cutoff_id = cut.id WHERE l.status = 'REJECTED' AND npsn_bapp IS NOT NULL AND l.id IN (SELECT MAX(l2.id) FROM logs l2 JOIN cutoff cut2 ON l2.cutoff_id = cut2.id GROUP BY cut2.npsn)
             ) AS all_rejections
             JOIN cluster c ON c.id = all_rejections.cluster_id
             GROUP BY c.main_cluster, c.sub_cluster
