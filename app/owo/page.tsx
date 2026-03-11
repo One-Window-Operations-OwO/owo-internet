@@ -657,12 +657,15 @@ export default function OwoPage() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-      const logRes = await fetch("/api/insert-log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(logData),
-        signal: controller.signal,
-      });
+      const logRes = await fetch(
+        "https://api-internet.pnj-digit.site/api/insertLogs",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(logData),
+          signal: controller.signal,
+        },
+      );
       clearTimeout(timeoutId);
 
       if (!logRes.ok) {

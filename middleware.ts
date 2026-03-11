@@ -3,11 +3,25 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
 
-    // Check for access_token cookie
+    const { pathname } = request.nextUrl;
+
+    // CORS for all API routes: allow everything from anywhere
+    if (pathname.startsWith('/api')) {
+        const response = request.method === 'OPTIONS'
+            ? new NextResponse(null, { status: 200 })
+            : NextResponse.next();
+
+        response.headers.set('Access-Control-Allow-Origin', '*');
+        response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+        response.headers.set('Access-Control-Allow-Headers', '*');
+
+        return response;
+    }
+
+    // Check for access_token cookie (only for non-API pages)
     const token = request.cookies.get('access_token')?.value;
     const isLoggedIn = !!token;
 
-    const { pathname } = request.nextUrl;
     // const adminRoutes = ['/verifikasi-admin-only-example']; // Example
     const protectedRoutes = ['/dashboard', '/owo', '/verifikasi'];
     const authRoutes = ['/login'];
@@ -33,13 +47,8 @@ export function middleware(request: NextRequest) {
 
 export const config = {
     matcher: [
-        /*
-         * Match all request paths except for the ones starting with:
-         * - api (API routes)
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         */
-        '/((?!api|_next/static|_next/image|favicon.ico).*)',
+        // Apply middleware to all API routes and all other pages
+        '/api/:path*',
+        '/((?!_next/static|_next/image|favicon.ico).*)',
     ],
 };

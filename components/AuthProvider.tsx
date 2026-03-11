@@ -63,7 +63,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         try {
             console.log("Checking auth via cookie...");
             // Check if token is valid
-            const res = await fetch("/api/auth/me", {
+            const res = await fetch("https://internet.pnj-digit.site/api/auth/me", {
                 method: "GET", // Changed to GET
                 headers: { "Content-Type": "application/json" },
             });
@@ -103,7 +103,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         }
 
         try {
-            const res = await fetch("/api/auth", {
+            const res = await fetch("https://internet.pnj-digit.site/api/auth", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password })
