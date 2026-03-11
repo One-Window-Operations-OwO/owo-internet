@@ -18,7 +18,7 @@ export default function LoginPage() {
         setSuccess("");
 
         try {
-            const res = await fetch("https://internet.pnj-digit.site/api/auth", {
+            const res = await fetch("/api/auth", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
